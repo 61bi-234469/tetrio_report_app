@@ -1,0 +1,37 @@
+# Python bytecode and virtual environments
+__pycache__/
+*.py[cod]
+.venv/
+
+# Local GUI settings
+gui_config.json
+
+# API downloads and generated final reports
+data/
+reports/
+.tetrio_api_session.json
+*_tetra_league_*.json
+*_tetra_league_*.json.cache.json
+*_tetra_league_*.csv
+*_tetra_league_*.parquet
+
+# Report builder runtime artifacts
+src/report_builder/cache/
+src/report_builder/charts/
+src/report_builder/output/
+src/report_builder/scripts/cache/
+
+# Legacy generated report fragments kept only for local compatibility
+src/report_builder/content/chapters/
+src/report_builder/content/partials/appendices.html
+
+# User-provided report builder inputs
+src/report_builder/input/*.csv
+src/report_builder/input/*.parquet
+src/report_builder/input/*.pq
+
+# Local logs
+*.log
+
+# Local design notes and records (local only)
+docs/

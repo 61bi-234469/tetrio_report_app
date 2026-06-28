@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{{ report.title }}</title>
+  <style>
+{% include "template/report.css" %}
+  </style>
+</head>
+<body>
+<a id="top"></a>
+<div class="wrap">
+{% include "content/partials/header.html" %}
+{% include "cache/generated/chapters/01_c1.html" %}
+{% include "cache/generated/chapters/02_c2.html" %}
+{% include "cache/generated/chapters/03_c3.html" %}
+{% include "cache/generated/chapters/04_c4.html" %}
+{% include "cache/generated/chapters/05_c5.html" %}
+{% include "cache/generated/chapters/06_c6.html" %}
+{% include "cache/generated/chapters/07_c7.html" %}
+{% include "cache/generated/chapters/08_c8.html" %}
+{% include "cache/generated/appendices.html" %}
+{% include "content/partials/footer.html" %}
+</div>
+<a class="backtop" href="#top">↑ 目次</a>
+</body>
+</html>

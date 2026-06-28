@@ -1,0 +1,9 @@
+<footer>
+<b>指標定義と注意書き（まとめ）</b>
+<p>APP = APM/(PPS×60)、DS/S = VS/100 － APM/60、DS/P = DS/S ÷ PPS、GbE = (APP×DS/S/PPS)×2、Area は同じ入力列から再計算、4スタイル値（Opener/Stride/Inf DS/Plonk）・Est. TR は入力parquetの派生指標列を使用。VS/APM は VS÷APM（APM=0は欠損）。</p>
+<p><b>期待勝率</b>：matches/rounds parquet の対戦前Glickoと相手RDから標準Glicko期待スコアを算出。表のnは通常勝敗の試合数、期待勝率はGlicko/RD欠損を除いた試合数を分母にします。TETR.IO内部のTR計算を再現するものではありません。検証性能はAUC 0.657／Brier 0.235／logloss 0.663。</p>
+<p><b>因果の注意</b>：ラウンド時間と勝敗には逆因果（苦戦ほど長引く）があります。ΔVS等の試合中指標は結果と同時に確定するため、勝敗予測の事前情報ではありません。スタイル分類は戦績由来の数式特徴量で、実際の開幕選択や意思決定を直接観測したものではありません。勝敗モデルの係数は予測上の関連であり、因果的勝因を証明しません。タイブレーク分析は『接戦を最終局面まで残した試合』への条件づけによる選択バイアスを含みます。時間帯・連戦位置・相手層には時期・自己選択の偏りがあります。</p>
+<p><b>データ処理</b>：入力はrounds_with_params.parquetとmatches_with_params.parquet。試合単位へは、勝敗・TR・Glicko/RD・スコアは試合の代表値、能力指標はラウンド平均で集計。DQ勝（dqvictory）・DQ負（dqdefeat）・無効（nullified）は参照可能な区分として通常勝敗分析から分離します。Glicko/RD欠損試合は期待勝率分析から除外。parquetは relay/board の個別状態を含まないため、開幕・盤面・相殺・入力ミス・回線状態は識別できません。</p>
+<p><b>帰属</b>：本レポートは非公式ツールで生成しています。TETR.IO / osk とは関係ありません。Est. TR、4スタイル値、Cheese Indexなどの派生指標は<a href="https://github.com/dan63047/TetraStats">TetraStats</a>由来の計算式を使用しています。</p>
+<p class="muted">生成日 {{ report.generated_date }}（JST）／ 自己完結HTML・外部依存なし。グラフはmatplotlibで生成しbase64 PNGとして埋め込み。</p>
+</footer>

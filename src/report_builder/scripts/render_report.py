@@ -59,8 +59,10 @@ TERM_TITLES = {
     "Garbage Eff.": "Garbage Efficiency。送ったお邪魔の効率の目安。",
     "VS/APM": "攻撃量に対する総合圧力。高いほど守備・相殺込みの圧が出ている目安。",
     "Cheese Index": "穴の散らばり・受けの荒れやすさの補助指標。高ければ常に良いとは限らない。",
+    "Area": "APM・PPS・VS・APP・DS/S・DS/P・GbEを重み付けで合算した総合スコア。",
     "Glicko": "TETR.IOの実力推定に近いレーティング系指標。",
     "RD": "Rating Deviation。レート推定の不確実性。",
+    "Est. TR": "能力指標から推定したTRの目安。入力データに既存の推定値がある場合に使用。",
     "AUC": "勝者を上位に並べる性能。高いほど良い。",
     "Brier": "予測確率の誤差。低いほど良い。",
     "Log loss": "予測確率の外し方への罰則。低いほど良い。",
@@ -612,19 +614,33 @@ def build_glossary(session_definition: dict[str, Any] | None = None) -> str:
     session_definition = session_definition or {}
     session_gap_minutes = session_definition.get("gap_minutes", 10)
     items = [
+        # 単位・期間
         ("試合", "Tetra Leagueの1マッチです。勝敗、TR変動、期待勝率、連勝連敗、セッション位置は試合単位で扱います。"),
         ("ラウンド", "試合内の1本です。ラウンド勝敗、決着時間、開始前スコア状況、最終ラウンドの能力変化はラウンド単位で扱います。"),
         ("セッション", f"前試合完了直後から次試合開始までの間隔が{session_gap_minutes}分以内の連戦まとまりです。セッション内の1戦目、2戦目、11戦目以降などの位置を試合単位で集計します。"),
+        # レーティング・勝率
+        ("TR", TERM_TITLES["TR"]),
+        ("Est. TR", TERM_TITLES["Est. TR"]),
+        ("Glicko", TERM_TITLES["Glicko"]),
+        ("RD", TERM_TITLES["RD"]),
         ("期待勝率", TERM_TITLES["期待勝率"]),
         ("期待超過", TERM_TITLES["期待超過"]),
+        # 基本能力指標
+        ("APM", TERM_TITLES["APM"]),
+        ("PPS", TERM_TITLES["PPS"]),
+        ("VS", TERM_TITLES["VS"]),
+        # 派生指標
         ("APP", TERM_TITLES["APP"]),
         ("DS/S", TERM_TITLES["DS/S"]),
         ("DS/P", TERM_TITLES["DS/P"]),
         ("GbE", TERM_TITLES["GbE"]),
         ("VS/APM", TERM_TITLES["VS/APM"]),
+        ("Area", TERM_TITLES["Area"]),
         ("Cheese Index", TERM_TITLES["Cheese Index"]),
-        ("AUC/Brier/Log loss", "モデルの当たり具合。AUCは高いほど、BrierとLog lossは低いほど良い。"),
+        # ばらつき・モデル評価
+        ("CV", TERM_TITLES["CV"]),
         ("Cohen's d", TERM_TITLES["Cohen's d"]),
+        ("AUC/Brier/Log loss", "モデルの当たり具合。AUCは高いほど、BrierとLog lossは低いほど良い。"),
     ]
     rows = "".join(f"<dt>{escape(k)}</dt><dd>{escape(v)}</dd>" for k, v in items)
     return f"""

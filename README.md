@@ -1,5 +1,10 @@
 # TETR.IO 戦績レポート作成ツール
 
+![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
+![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
+![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11-0078D6)
+![Status](https://img.shields.io/badge/Status-Unofficial-lightgrey)
+
 tetr.io の Tetra League 戦績を TETRA CHANNEL API から取得し、HTML 分析レポートを生成する Windows 向けツールです。
 プレイヤーIDと取得試合数を GUI で指定し、API取得、派生指標の計算、HTMLレポート生成までをまとめて実行できます。
 

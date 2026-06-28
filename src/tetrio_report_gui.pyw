@@ -48,7 +48,7 @@ DEFAULT_CONFIG = {
     "open_report": True,
     "save_csv": False,
     "save_base_files": False,
-    "save_ai_prompt": False,
+    "save_ai_prompt": True,
 }
 
 

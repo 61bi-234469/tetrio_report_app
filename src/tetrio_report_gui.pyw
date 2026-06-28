@@ -111,7 +111,7 @@ class ReportLauncherApp:
             variable=self.step_api_var,
         ).pack(anchor="w")
         ttk.Checkbutton(
-            steps, text="取得済みデータからHTMLレポートを作成する",
+            steps, text="① 戦績レポート（本体・HTML）を作成する",
             variable=self.step_report_var, command=self._toggle_report_options,
         ).pack(anchor="w")
         self.open_report_check = ttk.Checkbutton(
@@ -148,10 +148,21 @@ class ReportLauncherApp:
             variable=self.save_base_files_var,
         ).pack(anchor="w")
         self.save_ai_prompt_check = ttk.Checkbutton(
-            options, text="AI分析用のプロンプトと集計JSONをレポートと一緒に保存する",
+            options, text="② AI考察レポート（別紙）用の素材を保存する",
             variable=self.save_ai_prompt_var,
         )
         self.save_ai_prompt_check.pack(anchor="w")
+        self.ai_prompt_note = ttk.Label(
+            options,
+            text=(
+                "保存した2ファイル（プロンプト＋集計データ）を外部AIチャットに渡すと、"
+                "本体とは別の「別紙」HTMLを作れます。"
+            ),
+            foreground="#555555",
+            wraplength=620,
+            justify="left",
+        )
+        self.ai_prompt_note.pack(anchor="w", padx=(22, 0))
         self._toggle_report_options()
 
         row += 1
@@ -180,6 +191,9 @@ class ReportLauncherApp:
         state = "normal" if self.step_report_var.get() else "disabled"
         self.open_report_check.configure(state=state)
         self.save_ai_prompt_check.configure(state=state)
+        self.ai_prompt_note.configure(
+            foreground="#555555" if self.step_report_var.get() else "#aaaaaa"
+        )
 
     # ------------------------------------------------------------- config
     def _load_config(self) -> dict:
@@ -368,9 +382,9 @@ class ReportLauncherApp:
                 / f"{player_id}_tetra_league_matches_with_params.parquet"
             )
 
-            # --- ① API取得 ---
+            # --- API取得 ---
             if p["step_api"]:
-                self._log_write("\n========== ① API取得 ==========\n")
+                self._log_write("\n========== API取得 ==========\n")
                 # クローン直後は data フォルダが未生成のため、サブプロセスの
                 # 作業ディレクトリに指定する前に作成しておく（未作成だと
                 # Popen が WinError 267 を出して起動に失敗する）。
@@ -393,13 +407,13 @@ class ReportLauncherApp:
                     self._log_write("\n[中断] API取得でエラーが発生しました。\n")
                     return
 
-            # --- ② HTMLレポート生成 ---
+            # --- 戦績レポート（本体）生成 ---
             if p["step_report"]:
-                self._log_write("\n========== ② HTMLレポート生成 ==========\n")
+                self._log_write("\n========== 戦績レポート（本体）生成 ==========\n")
                 if not rounds_pq.exists():
                     self._log_write(
                         f"\n[中断] 入力データが見つかりません: {rounds_pq}\n"
-                        "先に「① API取得」を実行してください。\n"
+                        "先に「API取得」を実行してください。\n"
                     )
                     return
                 ps_inner = (
@@ -420,7 +434,7 @@ class ReportLauncherApp:
                     self._log_write("\n[中断] レポート生成でエラーが発生しました。\n")
                     return
 
-                self._log_write("\n========== レポートをreportsフォルダーへ保存 ==========\n")
+                self._log_write("\n========== 戦績レポート（本体）をreportsフォルダーへ保存 ==========\n")
                 saved_report = self._copy_latest_report(player_id)
                 if p["save_ai_prompt"]:
                     self._copy_ai_files(player_id)
@@ -469,26 +483,32 @@ class ReportLauncherApp:
         if payload_path is not None:
             copied.append(payload_path)
 
+        if len(copied) == 2:
+            self._log_write(
+                "\n[次の手順] 上記2ファイルを外部AIチャットに渡すと、"
+                "②AI考察レポート（別紙）HTMLを作成できます。\n"
+            )
+
         return copied
 
     def _copy_ai_prompt(self, player_id: str) -> Path | None:
         if not AI_PROMPT_MD.exists():
-            self._log_write(f"[警告] AI連携用プロンプトが見つかりません: {AI_PROMPT_MD}\n")
+            self._log_write(f"[警告] 別紙用プロンプトが見つかりません: {AI_PROMPT_MD}\n")
             return None
         RESULT_DIR.mkdir(parents=True, exist_ok=True)
-        dest = RESULT_DIR / f"{player_id}_external_ai_prompt.md"
+        dest = RESULT_DIR / f"{player_id}_ai_appendix_prompt.md"
         shutil.copy2(AI_PROMPT_MD, dest)
-        self._log_write(f"AI連携用プロンプトを保存しました: {dest}\n")
+        self._log_write(f"別紙用プロンプトを保存しました: {dest}\n")
         return dest
 
     def _copy_ai_payload(self, player_id: str) -> Path | None:
         if not AI_PAYLOAD_JSON.exists():
-            self._log_write(f"[警告] AI連携用集計JSONが見つかりません: {AI_PAYLOAD_JSON}\n")
+            self._log_write(f"[警告] 別紙用集計データが見つかりません: {AI_PAYLOAD_JSON}\n")
             return None
         RESULT_DIR.mkdir(parents=True, exist_ok=True)
-        dest = RESULT_DIR / f"{player_id}_external_ai_payload.json"
+        dest = RESULT_DIR / f"{player_id}_ai_appendix_data.json"
         shutil.copy2(AI_PAYLOAD_JSON, dest)
-        self._log_write(f"AI連携用集計JSONを保存しました: {dest}\n")
+        self._log_write(f"別紙用集計データを保存しました: {dest}\n")
         return dest
 
     def _open_file(self, path: Path) -> None:

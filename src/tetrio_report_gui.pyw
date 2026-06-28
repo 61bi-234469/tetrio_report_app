@@ -371,6 +371,10 @@ class ReportLauncherApp:
             # --- ① API取得 ---
             if p["step_api"]:
                 self._log_write("\n========== ① API取得 ==========\n")
+                # クローン直後は data フォルダが未生成のため、サブプロセスの
+                # 作業ディレクトリに指定する前に作成しておく（未作成だと
+                # Popen が WinError 267 を出して起動に失敗する）。
+                EXPORT_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
                 cmd = [
                     python_exe, str(EXPORT_SCRIPT),
                     "--source", "api",

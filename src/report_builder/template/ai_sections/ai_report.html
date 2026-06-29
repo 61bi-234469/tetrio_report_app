@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>TETR.IO 戦績レポート 別紙：総合まとめと定性分析</title>
+  <style>
+:root{--ink:#15161e;--muted:#6b7280;--grid:#e8e9ef;--primary:#6366f1;--bg:#fbfbfd;--card:#fff;--good:#0f9b6e;--issue:#c2410c;--neutral:#2563eb}
+*{box-sizing:border-box}
+body{font-family:"Noto Sans CJK JP","Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif;color:var(--ink);background:var(--bg);margin:0;line-height:1.8;font-size:15.5px}
+.wrap{max-width:940px;margin:0 auto;padding:32px 22px 72px}
+header{border-bottom:2px solid var(--ink);padding-bottom:18px;margin-bottom:24px;position:relative}
+h1{font-size:28px;margin:0 0 6px;letter-spacing:0;padding-right:170px}
+.gen-model{position:absolute;top:0;right:0;text-align:right;max-width:160px}
+.sub,.lead,.muted{color:var(--muted)}
+.sub{font-size:14px;margin:0}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-top:16px}
+.meta div,.card,.note{background:var(--card);border:1px solid var(--grid);border-radius:8px;padding:12px 14px}
+.lab{display:block;color:var(--muted);font-size:12px;font-weight:700}
+.val{display:block;font-size:15px;font-weight:800;margin-top:2px}
+.note{background:#fffdf5;border-color:#f3e6c0;color:#514226;font-size:13.5px;margin:18px 0 26px}
+section{margin-top:30px}
+h2{font-size:21px;margin:0 0 8px;padding-top:14px;border-top:1px solid var(--grid);display:flex;gap:10px;align-items:baseline}
+h2 .no{color:var(--primary);font-weight:800;font-size:15px;background:#eef0ff;border-radius:8px;padding:2px 10px;white-space:nowrap}
+p{margin:8px 0}
+.lead{font-size:14px;margin:0 0 12px}
+.card{border-left:4px solid var(--primary);margin-top:10px}
+.card.good{border-left-color:var(--good)}
+.card.issue{border-left-color:var(--issue)}
+.card.neutral{border-left-color:var(--neutral)}
+.key{font-weight:800;margin-bottom:6px}
+.tbl-scroll{overflow-x:auto;margin-top:8px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{border:1px solid var(--grid);padding:8px 10px;text-align:left;vertical-align:top}
+th{background:#f4f5fb;font-weight:700;white-space:nowrap}
+.pri{font-weight:800}
+.pri-high{color:var(--issue)}
+.pri-mid{color:var(--neutral)}
+footer{margin-top:48px;border-top:1px solid var(--grid);padding-top:18px;color:var(--muted);font-size:12.5px}
+@media (max-width:700px){.wrap{padding:24px 14px 64px}h1{font-size:23px;padding-right:0}h2{font-size:19px}.meta{grid-template-columns:1fr}.gen-model{position:static;text-align:left;max-width:none;margin-top:8px}}
+@media print{body{font-size:12px}.card{break-inside:avoid}}
+  </style>
+</head>
+<body>
+{% macro card(section, cls="neutral") -%}
+    <div class="card {{ cls }}">
+      <p class="key">{{ section.key }}</p>
+      <ul>
+      {% for item in section.bullets %}
+        <li>{{ item }}</li>
+      {% endfor %}
+      </ul>
+      <p>{{ section.summary }}</p>
+    </div>
+{%- endmacro %}
+<div class="wrap">
+  <header>
+    <div class="gen-model"><span class="lab">生成AIモデル</span><span class="val">{{ ai_model }}</span></div>
+    <h1>TETR.IO 戦績レポート 別紙：総合まとめと定性分析</h1>
+    <p class="sub">集計JSONをもとに、戦績の傾向と確認ポイントを短く整理しています。</p>
+    <div class="meta">
+      <div><span class="lab">対象プレイヤー</span><span class="val">{{ player_name }}</span></div>
+      <div><span class="lab">対象期間</span><span class="val">{{ source_period }}</span></div>
+      <div><span class="lab">生成日</span><span class="val">{{ generated_date }}</span></div>
+    </div>
+  </header>
+
+  <div class="note">この別紙は添付JSONの集計値だけを根拠に作成しています。元データの再集計や外部情報の参照は行っていません。</div>
+
+  <section id="overview">
+    <h2><span class="no">1</span>これまでの推移</h2>
+    <p class="lead">TR、直近成績、主要指標、ドローダウンの戻り方を確認します。</p>
+{{ card(overview, "neutral") }}
+  </section>
+
+  <section id="strengths">
+    <h2><span class="no">2</span>強み（勝ち筋）</h2>
+    <p class="lead">勝敗差や相対指標から、結果に結びついている傾向を整理します。詳細は該当する粒度の章で扱います。</p>
+{{ card(strengths, "good") }}
+  </section>
+
+  <section id="weaknesses">
+    <h2><span class="no">3</span>弱み・伸びしろ（負け筋）</h2>
+    <p class="lead">負けやすい条件、安定性、速度帯で弱く出ている傾向を確認します。詳細は該当する粒度の章で扱います。</p>
+{{ card(weaknesses, "issue") }}
+  </section>
+
+  <section id="style">
+    <h2><span class="no">4</span>プレイスタイルの特徴（プレイスタイル像）</h2>
+    <p class="lead">全期間と直近100試合の4プレイスタイル値を整理します。</p>
+{{ card(style, "neutral") }}
+  </section>
+
+  <section id="round_states">
+    <h2><span class="no">5</span>ラウンド単位：局面別の揺れ</h2>
+    <p class="lead">ラウンド開始前のスコア状況（同点・リード・ビハインド・各マッチポイント）と、決着時間・タイブレークでの揺れを確認します。</p>
+{{ card(round_states, "neutral") }}
+  </section>
+
+  <section id="streak">
+    <h2><span class="no">6</span>試合単位：連勝・連敗による揺れ</h2>
+    <p class="lead">連勝後・連敗後・3連敗（3試合連続の敗北）以降での試合勝率と能力指標の揺れを確認します。連勝・連敗はすべて試合単位です。</p>
+{{ card(streak, "neutral") }}
+  </section>
+
+  <section id="session">
+    <h2><span class="no">7</span>セッション単位：試合位置と運用提案</h2>
+    <p class="lead">セッション内の試合位置と継続傾向（勝ち後／負け後の続けやすさ）、1セッションの目安試合数・中断ポイントの候補、曜日別・時間帯別の偏りを確認します。</p>
+{{ card(session, "neutral") }}
+  </section>
+
+  <section id="replays">
+    <h2><span class="no">8</span>次に見るべきリプレイ条件</h2>
+    <p class="lead">勝ち筋・負け筋が分かれやすい条件から、振り返ると確認しやすいリプレイの条件を整理します。プレイングの指示ではなく確認の観点です。</p>
+    <div class="card neutral">
+      <p class="key">{{ replays.key }}</p>
+      <div class="tbl-scroll">
+        <table>
+          <thead>
+            <tr><th>優先度</th><th>見るリプレイ（条件）</th><th>見たい点（確認の観点）</th></tr>
+          </thead>
+          <tbody>
+          {% for row in replays.rows %}
+            <tr><td class="pri {{ 'pri-high' if row.priority == '高' else 'pri-mid' }}">{{ row.priority }}</td><td>{{ row.condition }}</td><td>{{ row.viewpoint }}</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <p>{{ replays.summary }}</p>
+    </div>
+  </section>
+
+  <section id="summary">
+    <h2><span class="no">9</span>総括</h2>
+    <div class="card">
+      <p class="key">{{ summary.key }}</p>
+      <p>{{ summary.body }}</p>
+    </div>
+  </section>
+
+  <section id="method">
+    <h2><span class="no">10</span>分析過程と検証・逆因果</h2>
+    <p class="lead">読者が考察を後から検証・反証できるよう、読みの組み立て方と逆因果・選択バイアスの可能性を明記します。</p>
+    <div class="card neutral">
+      <p class="key">{{ method.key }}</p>
+      <ul>
+      {% for item in method.bullets %}
+        <li>{{ item }}</li>
+      {% endfor %}
+      </ul>
+    </div>
+  </section>
+
+  <section id="evidence">
+    <h2><span class="no">11</span>根拠と保留事項</h2>
+    <div class="card">
+      <p>{{ evidence.body }}</p>
+    </div>
+  </section>
+
+  <footer>この別紙は別紙用の集計データから作成した定性分析です。①戦績レポート（本体）の数値定義と集計結果を前提にしています。</footer>
+</div>
+</body>
+</html>

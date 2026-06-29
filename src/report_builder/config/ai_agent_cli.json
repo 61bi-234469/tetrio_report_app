@@ -1,0 +1,26 @@
+{
+  "codex": {
+    "display_name": "Codex CLI",
+    "executable": "codex",
+    "mode": "exec",
+    "base_args": ["exec", "--skip-git-repo-check", "--cd", "."],
+    "sandbox_args": ["--sandbox", "danger-full-access"],
+    "network": false,
+    "prompt_via": "argument",
+    "version_args": ["--version"],
+    "timeout_seconds": 600,
+    "auth_env": ["OPENAI_API_KEY", "CODEX_API_KEY"]
+  },
+  "claude": {
+    "display_name": "Claude Code CLI",
+    "executable": "claude",
+    "mode": "print",
+    "base_args": ["--model", "sonnet", "-p", "--no-session-persistence"],
+    "sandbox_args": [],
+    "network": false,
+    "prompt_via": "stdin",
+    "version_args": ["--version"],
+    "timeout_seconds": 600,
+    "auth_env": ["ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"]
+  }
+}

@@ -16,6 +16,7 @@ import queue
 import shutil
 import subprocess
 import threading
+import time
 from pathlib import Path
 
 import tkinter as tk
@@ -28,8 +29,7 @@ EXPORT_SCRIPT = SRC_DIR / "api_export" / "tetrio_league_export.py"
 EXPORT_OUTPUT_DIR = APP_ROOT / "data"
 TEMPLATE_DIR = SRC_DIR / "report_builder"
 MAKE_REPORT_PS1 = TEMPLATE_DIR / "make_report.ps1"
-AI_PROMPT_MD = TEMPLATE_DIR / "prompts" / "prompt_recommendations.md"
-AI_PAYLOAD_JSON = TEMPLATE_DIR / "cache" / "ai_analysis_payload.json"
+AI_CACHE_DIR = TEMPLATE_DIR / "cache" / "ai"
 REQUIREMENTS = TEMPLATE_DIR / "requirements.txt"
 VENV_DIR = TEMPLATE_DIR / ".venv"
 VENV_PYTHON = VENV_DIR / "Scripts" / "python.exe"
@@ -38,6 +38,29 @@ RESULT_DIR = APP_ROOT / "reports"
 CONFIG_PATH = APP_ROOT / "gui_config.json"
 REQ_HASH_SENTINEL = TEMPLATE_DIR / "cache" / ".requirements.sha256"
 PLACEHOLDER_USERNAME = "your_username"
+
+# ② AI考察レポートの選択肢（表示ラベル <-> 内部値）。
+AI_METHOD_CHOICES = [
+    ("AIチャット用素材を保存", "manual_chat"),
+    ("AIエージェントCLIで自動作成", "agent_cli"),
+]
+AI_QUALITY_CHOICES = [
+    ("標準", "standard"),
+    ("高品質", "high_quality"),
+    ("低コスト", "low_cost"),
+    ("従来JSON（ai_appendix_data）", "legacy_appendix"),
+]
+AI_AGENT_CHOICES = [
+    ("Codex CLI", "codex"),
+    ("Claude Code CLI", "claude"),
+]
+# 品質内部値 -> 保存するAI用JSONファイル名。
+AI_QUALITY_SUMMARY = {
+    "standard": "summary_standard.json",
+    "high_quality": "summary_rich.json",
+    "low_cost": "summary_compact.json",
+    "legacy_appendix": "ai_appendix_data.json",
+}
 
 DEFAULT_CONFIG = {
     "username": PLACEHOLDER_USERNAME,
@@ -48,16 +71,33 @@ DEFAULT_CONFIG = {
     "open_report": True,
     "save_csv": False,
     "save_base_files": False,
-    "save_ai_prompt": True,
+    "step_ai_report": False,
+    "ai_report_method": "manual_chat",
+    "ai_agent": "codex",
+    "ai_quality": "standard",
 }
+
+
+def _label_to_value(choices: list[tuple[str, str]], label: str, fallback: str) -> str:
+    for lab, val in choices:
+        if lab == label:
+            return val
+    return fallback
+
+
+def _value_to_label(choices: list[tuple[str, str]], value: str) -> str:
+    for lab, val in choices:
+        if val == value:
+            return lab
+    return choices[0][0]
 
 
 class ReportLauncherApp:
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
         self.root.title("TETR.IO 戦績レポート作成")
-        self.root.geometry("720x620")
-        self.root.minsize(640, 540)
+        self.root.geometry("720x780")
+        self.root.minsize(640, 660)
 
         self.log_queue: "queue.Queue[str]" = queue.Queue()
         self.worker: threading.Thread | None = None
@@ -114,6 +154,11 @@ class ReportLauncherApp:
             steps, text="① 戦績レポート（本体・HTML）を作成する",
             variable=self.step_report_var, command=self._toggle_report_options,
         ).pack(anchor="w")
+        self.step_ai_report_var = tk.BooleanVar(value=bool(cfg["step_ai_report"]))
+        ttk.Checkbutton(
+            steps, text="② AI考察レポートを作る",
+            variable=self.step_ai_report_var, command=self._toggle_ai_report_options,
+        ).pack(anchor="w")
         self.open_report_check = ttk.Checkbutton(
             steps, text="作成後にレポートをブラウザーで開く",
             variable=self.open_report_var,
@@ -138,7 +183,6 @@ class ReportLauncherApp:
         options.grid(row=row, column=0, columnspan=2, sticky="ew", **pad)
         self.save_csv_var = tk.BooleanVar(value=bool(cfg["save_csv"]))
         self.save_base_files_var = tk.BooleanVar(value=bool(cfg["save_base_files"]))
-        self.save_ai_prompt_var = tk.BooleanVar(value=bool(cfg["save_ai_prompt"]))
         ttk.Checkbutton(
             options, text="Parquetに加えてCSV形式でも保存する",
             variable=self.save_csv_var,
@@ -147,23 +191,67 @@ class ReportLauncherApp:
             options, text="派生指標を追加する前の元データも残す",
             variable=self.save_base_files_var,
         ).pack(anchor="w")
-        self.save_ai_prompt_check = ttk.Checkbutton(
-            options, text="② AI考察レポート（別紙）用の素材を保存する",
-            variable=self.save_ai_prompt_var,
+
+        row += 1
+        self.ai_frame = ttk.LabelFrame(frm, text="② AI考察レポート設定", padding=8)
+        self.ai_frame.grid(row=row, column=0, columnspan=2, sticky="ew", **pad)
+        self.ai_frame.columnconfigure(1, weight=1)
+
+        ttk.Label(self.ai_frame, text="作成方法").grid(
+            row=0, column=0, sticky="w", padx=4, pady=2
         )
-        self.save_ai_prompt_check.pack(anchor="w")
-        self.ai_prompt_note = ttk.Label(
-            options,
+        self.ai_method_var = tk.StringVar(
+            value=_value_to_label(AI_METHOD_CHOICES, cfg["ai_report_method"])
+        )
+        self.ai_method_combo = ttk.Combobox(
+            self.ai_frame, textvariable=self.ai_method_var, state="readonly",
+            values=[lab for lab, _ in AI_METHOD_CHOICES],
+        )
+        self.ai_method_combo.grid(row=0, column=1, sticky="ew", padx=4, pady=2)
+        self.ai_method_combo.bind(
+            "<<ComboboxSelected>>", lambda _e: self._toggle_ai_report_options()
+        )
+
+        ttk.Label(self.ai_frame, text="品質").grid(
+            row=1, column=0, sticky="w", padx=4, pady=2
+        )
+        self.ai_quality_var = tk.StringVar(
+            value=_value_to_label(AI_QUALITY_CHOICES, cfg["ai_quality"])
+        )
+        self.ai_quality_combo = ttk.Combobox(
+            self.ai_frame, textvariable=self.ai_quality_var, state="readonly",
+            values=[lab for lab, _ in AI_QUALITY_CHOICES],
+        )
+        self.ai_quality_combo.grid(row=1, column=1, sticky="ew", padx=4, pady=2)
+
+        ttk.Label(self.ai_frame, text="連携AIエージェントCLI").grid(
+            row=2, column=0, sticky="w", padx=4, pady=2
+        )
+        self.ai_agent_var = tk.StringVar(
+            value=_value_to_label(AI_AGENT_CHOICES, cfg["ai_agent"])
+        )
+        self.ai_agent_combo = ttk.Combobox(
+            self.ai_frame, textvariable=self.ai_agent_var, state="readonly",
+            values=[lab for lab, _ in AI_AGENT_CHOICES],
+        )
+        self.ai_agent_combo.grid(row=2, column=1, sticky="ew", padx=4, pady=2)
+
+        self.ai_note = ttk.Label(
+            self.ai_frame,
             text=(
-                "保存した2ファイル（プロンプト＋集計データ）を外部AIチャットに渡すと、"
-                "本体とは別の「別紙」HTMLを作れます。"
+                "「AIチャット用素材を保存」は、選択中の品質に対応するJSONとプロンプトを"
+                "reportsフォルダーへ保存します。外部AIチャット上で②レポートHTMLを作れます。"
+                "「AIエージェントCLIで自動作成」は、Codex CLI / Claude Code CLI を呼び出し、"
+                "本文JSONから②AI考察レポートHTMLまで作ります。"
             ),
             foreground="#555555",
             wraplength=620,
             justify="left",
         )
-        self.ai_prompt_note.pack(anchor="w", padx=(22, 0))
+        self.ai_note.grid(row=3, column=0, columnspan=2, sticky="w", padx=4, pady=2)
+
         self._toggle_report_options()
+        self._toggle_ai_report_options()
 
         row += 1
         btns = ttk.Frame(frm)
@@ -188,12 +276,25 @@ class ReportLauncherApp:
         )
 
     def _toggle_report_options(self) -> None:
-        state = "normal" if self.step_report_var.get() else "disabled"
-        self.open_report_check.configure(state=state)
-        self.save_ai_prompt_check.configure(state=state)
-        self.ai_prompt_note.configure(
-            foreground="#555555" if self.step_report_var.get() else "#aaaaaa"
+        # ①または②のどちらかを作るならレポートを開くオプションを有効にする。
+        any_report = self.step_report_var.get() or self.step_ai_report_var.get()
+        self.open_report_check.configure(
+            state="normal" if any_report else "disabled"
         )
+
+    def _toggle_ai_report_options(self) -> None:
+        on = self.step_ai_report_var.get()
+        base_state = "readonly" if on else "disabled"
+        self.ai_method_combo.configure(state=base_state)
+        self.ai_quality_combo.configure(state=base_state)
+        # 連携AIエージェントCLIは自動作成を選んだ場合だけ有効にする。
+        method = _label_to_value(
+            AI_METHOD_CHOICES, self.ai_method_var.get(), "manual_chat"
+        )
+        agent_on = on and method == "agent_cli"
+        self.ai_agent_combo.configure(state="readonly" if agent_on else "disabled")
+        self.ai_note.configure(foreground="#555555" if on else "#aaaaaa")
+        self._toggle_report_options()
 
     # ------------------------------------------------------------- config
     def _load_config(self) -> dict:
@@ -217,7 +318,16 @@ class ReportLauncherApp:
             "open_report": self.open_report_var.get(),
             "save_csv": self.save_csv_var.get(),
             "save_base_files": self.save_base_files_var.get(),
-            "save_ai_prompt": self.save_ai_prompt_var.get(),
+            "step_ai_report": self.step_ai_report_var.get(),
+            "ai_report_method": _label_to_value(
+                AI_METHOD_CHOICES, self.ai_method_var.get(), "manual_chat"
+            ),
+            "ai_agent": _label_to_value(
+                AI_AGENT_CHOICES, self.ai_agent_var.get(), "codex"
+            ),
+            "ai_quality": _label_to_value(
+                AI_QUALITY_CHOICES, self.ai_quality_var.get(), "standard"
+            ),
         }
         try:
             CONFIG_PATH.write_text(
@@ -265,6 +375,7 @@ class ReportLauncherApp:
         if not (
             self.step_api_var.get()
             or self.step_report_var.get()
+            or self.step_ai_report_var.get()
         ):
             messagebox.showwarning(
                 "入力エラー", "実行するステップを1つ以上選んでください。"
@@ -284,7 +395,16 @@ class ReportLauncherApp:
             "open_report": self.open_report_var.get(),
             "save_csv": self.save_csv_var.get(),
             "save_base_files": self.save_base_files_var.get(),
-            "save_ai_prompt": self.save_ai_prompt_var.get(),
+            "step_ai_report": self.step_ai_report_var.get(),
+            "ai_report_method": _label_to_value(
+                AI_METHOD_CHOICES, self.ai_method_var.get(), "manual_chat"
+            ),
+            "ai_agent": _label_to_value(
+                AI_AGENT_CHOICES, self.ai_agent_var.get(), "codex"
+            ),
+            "ai_quality": _label_to_value(
+                AI_QUALITY_CHOICES, self.ai_quality_var.get(), "standard"
+            ),
         }
         self.worker = threading.Thread(
             target=self._run_pipeline, args=(params,), daemon=True
@@ -407,15 +527,26 @@ class ReportLauncherApp:
                     self._log_write("\n[中断] API取得でエラーが発生しました。\n")
                     return
 
-            # --- 戦績レポート（本体）生成 ---
-            if p["step_report"]:
-                self._log_write("\n========== 戦績レポート（本体）生成 ==========\n")
+            # --- 戦績レポート生成（①本体は常に作成、②はオプション） ---
+            if p["step_report"] or p["step_ai_report"]:
+                self._log_write("\n========== 戦績レポート生成 ==========\n")
                 if not rounds_pq.exists():
                     self._log_write(
                         f"\n[中断] 入力データが見つかりません: {rounds_pq}\n"
                         "先に「API取得」を実行してください。\n"
                     )
                     return
+
+                ai_flags = ""
+                if p["step_ai_report"]:
+                    if p["ai_report_method"] == "agent_cli":
+                        ai_flags = (
+                            f" -GenerateAIReport -AIAgent {p['ai_agent']} "
+                            f"-AIQuality {p['ai_quality']}"
+                        )
+                    else:
+                        ai_flags = f" -PrepareAI -AIQuality {p['ai_quality']}"
+
                 ps_inner = (
                     "$OutputEncoding=[Console]::OutputEncoding="
                     "[System.Text.Encoding]::UTF8; "
@@ -424,22 +555,34 @@ class ReportLauncherApp:
                     f"-MatchesFile '{matches_pq}' "
                     f"-Player '{player_id}' "
                     "-Force"
+                    f"{ai_flags}"
                 )
                 cmd = [
                     "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
                     "-Command", ps_inner,
                 ]
+                # この実行で②HTMLが新規生成されたかを判定するための基準時刻。
+                run_started = time.time()
                 rc = self._stream(cmd, cwd=TEMPLATE_DIR)
                 if rc != 0:
                     self._log_write("\n[中断] レポート生成でエラーが発生しました。\n")
                     return
 
-                self._log_write("\n========== 戦績レポート（本体）をreportsフォルダーへ保存 ==========\n")
+                self._log_write(
+                    "\n========== レポートをreportsフォルダーへ保存 ==========\n"
+                )
                 saved_report = self._copy_latest_report(player_id)
-                if p["save_ai_prompt"]:
-                    self._copy_ai_files(player_id)
-                if p["open_report"] and saved_report is not None:
-                    self._open_file(saved_report)
+                saved_ai_report = None
+                if p["step_ai_report"]:
+                    saved_ai_report = self._copy_ai_outputs(
+                        player_id, p, since=run_started
+                    )
+
+                if p["open_report"]:
+                    if saved_report is not None:
+                        self._open_file(saved_report)
+                    if saved_ai_report is not None:
+                        self._open_file(saved_ai_report)
 
             self._log_write("\n✅ 完了しました。\n")
         except Exception as exc:  # noqa: BLE001
@@ -480,43 +623,90 @@ class ReportLauncherApp:
         self._log_write(f"保存しました: {dest}\n")
         return dest
 
-    def _copy_ai_files(self, player_id: str) -> list[Path]:
-        copied: list[Path] = []
-        prompt_path = self._copy_ai_prompt(player_id)
-        if prompt_path is not None:
-            copied.append(prompt_path)
+    def _copy_ai_outputs(
+        self, player_id: str, p: dict, since: float
+    ) -> Path | None:
+        """②AI考察の素材と、自動作成できた場合のAI考察レポートHTMLを保存する。
 
-        payload_path = self._copy_ai_payload(player_id)
-        if payload_path is not None:
-            copied.append(payload_path)
+        戻り値は開く対象となる②AIレポートHTML（無ければ None）。
+        `since` はこの実行の開始時刻で、それ以降に生成されたHTMLだけを当該実行の
+        結果として扱う（過去実行の古い②HTMLを誤って取り込まないため）。
+        """
+        RESULT_DIR.mkdir(parents=True, exist_ok=True)
 
-        if len(copied) == 2:
-            self._log_write(
-                "\n[次の手順] 上記2ファイルを外部AIチャットに渡すと、"
-                "②AI考察レポート（別紙）HTMLを作成できます。\n"
+        ai_report_src = self._expected_ai_report_path(player_id)
+        ai_report_ready = (
+            p["ai_report_method"] == "agent_cli"
+            and ai_report_src is not None
+            and ai_report_src.is_file()
+            and ai_report_src.stat().st_mtime >= since
+        )
+
+        # AIチャット貼り付け手順の素材（JSON・プロンプト）を保存する。
+        # AIエージェントCLIが失敗した場合も、同じ素材で手動手順へ切り替えられる。
+        if p["ai_report_method"] == "manual_chat" or not ai_report_ready:
+            summary_file = AI_QUALITY_SUMMARY.get(
+                p["ai_quality"], "summary_standard.json"
             )
+            material_files = [
+                summary_file,
+                "prompt_chat.md",
+            ]
+            saved_materials: list[Path] = []
+            for name in material_files:
+                src = AI_CACHE_DIR / name
+                if not src.exists():
+                    continue
+                dest = RESULT_DIR / f"{player_id}_ai_{name}"
+                shutil.copy2(src, dest)
+                saved_materials.append(dest)
+            if saved_materials:
+                self._log_write(
+                    "②AI素材を保存しました（外部AIチャットに渡せます）:\n"
+                )
+                for dest in saved_materials:
+                    self._log_write(f"  {dest}\n")
+                self._log_write(
+                    "[次の手順] 上記のプロンプトとJSONをAIチャットに渡し、"
+                    "AIチャット側で②AI考察レポートHTMLを作成してください。\n"
+                )
 
-        return copied
-
-    def _copy_ai_prompt(self, player_id: str) -> Path | None:
-        if not AI_PROMPT_MD.exists():
-            self._log_write(f"[警告] 別紙用プロンプトが見つかりません: {AI_PROMPT_MD}\n")
+        # ②AIレポートHTMLはAIエージェントCLIで自動作成した場合だけ取り込む。
+        if p["ai_report_method"] != "agent_cli":
             return None
-        RESULT_DIR.mkdir(parents=True, exist_ok=True)
-        dest = RESULT_DIR / f"{player_id}_ai_appendix_prompt.md"
-        shutil.copy2(AI_PROMPT_MD, dest)
-        self._log_write(f"別紙用プロンプトを保存しました: {dest}\n")
+
+        src = ai_report_src
+        if src is None or not ai_report_ready:
+            self._log_write(
+                "[注意] ②AI考察レポートHTMLはこの実行では生成されていません。"
+                "CLI実行ログ（cache/ai/ai_agent_run.json）をご確認ください。"
+                "保存済みの素材でAIチャット貼り付け手順へ切り替えられます。\n"
+            )
+            return None
+
+        dest = RESULT_DIR / src.name
+        shutil.copy2(src, dest)
+        self._log_write(f"②AI考察レポートを保存しました: {dest}\n")
         return dest
 
-    def _copy_ai_payload(self, player_id: str) -> Path | None:
-        if not AI_PAYLOAD_JSON.exists():
-            self._log_write(f"[警告] 別紙用集計データが見つかりません: {AI_PAYLOAD_JSON}\n")
+    @staticmethod
+    def _expected_ai_report_path(player_id: str) -> Path | None:
+        """cache/report_data.json から、この入力に対応する②HTMLパスを決める。"""
+        report_data = TEMPLATE_DIR / "cache" / "report_data.json"
+        if not report_data.is_file():
             return None
-        RESULT_DIR.mkdir(parents=True, exist_ok=True)
-        dest = RESULT_DIR / f"{player_id}_ai_appendix_data.json"
-        shutil.copy2(AI_PAYLOAD_JSON, dest)
-        self._log_write(f"別紙用集計データを保存しました: {dest}\n")
-        return dest
+        try:
+            data = json.loads(report_data.read_text(encoding="utf-8"))
+        except Exception:
+            return None
+        output_filename = data.get("output_filename")
+        if not output_filename:
+            return None
+        expected_prefix = f"{player_id}_tetrio_performance_report_"
+        if not str(output_filename).startswith(expected_prefix):
+            return None
+        stem = Path(output_filename).stem
+        return TEMPLATE_OUTPUT_DIR / f"{stem}_ai_report.html"
 
     def _open_file(self, path: Path) -> None:
         try:

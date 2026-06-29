@@ -451,12 +451,19 @@ class ReportLauncherApp:
         if not TEMPLATE_OUTPUT_DIR.exists():
             self._log_write("[警告] output フォルダーが見つかりません。\n")
             return None
-        pattern = f"*_{player_id}_tetrio_performance_report.html"
+        pattern = f"{player_id}_tetrio_performance_report_*.html"
         candidates = sorted(
             TEMPLATE_OUTPUT_DIR.glob(pattern),
             key=lambda f: f.stat().st_mtime,
             reverse=True,
         )
+        if not candidates:
+            legacy_pattern = f"*_{player_id}_tetrio_performance_report.html"
+            candidates = sorted(
+                TEMPLATE_OUTPUT_DIR.glob(legacy_pattern),
+                key=lambda f: f.stat().st_mtime,
+                reverse=True,
+            )
         if not candidates:
             candidates = sorted(
                 TEMPLATE_OUTPUT_DIR.glob("*.html"),

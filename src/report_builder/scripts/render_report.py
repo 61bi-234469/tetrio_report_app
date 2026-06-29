@@ -695,7 +695,7 @@ def render_report_data(bundle: AnalysisBundle, project_root: Path, player_name: 
         "note_box_html": note,
         "toc_html": toc,
         "generated_date": now_jst.strftime("%Y-%m-%d"),
-        "output_filename": f"{output_date}_{player_name}_tetrio_performance_report.html",
+        "output_filename": f"{player_name}_tetrio_performance_report_{output_date}.html",
     }
     (project_root / "cache" / "report_data.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
 

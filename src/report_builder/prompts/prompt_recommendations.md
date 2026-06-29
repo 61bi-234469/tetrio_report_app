@@ -73,7 +73,7 @@
 ### 3. HTML出力ルール
 
 - 成果物は **HTMLファイル** として出力してください。
-- ファイル名は `yyyy_mm_dd_ユーザーid_tetrio_ai_summary_sheet.html` にしてください。
+- ファイル名は `ユーザーid_tetrio_ai_summary_sheet_yyyy_mm_dd.html` にしてください。
 - ファイル作成や添付ができるAI環境では、HTML本文をチャット本文に貼らず、`.html` ファイルとして作成・添付してください。
 - ファイル作成ができないAI環境の場合だけ、保存用の完全なHTML文書をチャット本文に出力してください。
 - チャット本文に出す場合も、Markdown、説明文、コードフェンス、前置き、後書きは出力しません。
@@ -90,7 +90,7 @@
 ファイル作成ができる場合は、最終応答は短く次の形にしてください。
 
 ```text
-HTMLファイルを作成しました: tetrio_ai_summary_sheet.html
+HTMLファイルを作成しました: ユーザーid_tetrio_ai_summary_sheet_yyyy_mm_dd.html
 ```
 
 ファイル作成ができない場合は、説明を加えず、HTML全文だけを出力してください。

@@ -22,7 +22,7 @@
   `.\src\report_builder\make_report.ps1 -DataFile "data\<user>_tetra_league_rounds_with_params.parquet" -MatchesFile "data\<user>_tetra_league_matches_with_params.parquet" -Player "<label>"`
 - Fetch API data directly with:
   `& "src\report_builder\.venv\Scripts\python.exe" "src\api_export\tetrio_league_export.py" --source api --username <user> --max-matches 100 --outputs all --output-dir "data"`
-- `make_report.ps1` switches: `-Force` (ignore cache and rerun every stage), `-Open` (open the HTML in a browser when done), `-PrepareAI` (also emit the lightweight AI JSON), `-Chapter 9,12` (limit `-PrepareAI` to specific chapters, range 1-12), `-ExternalImages` (emit an extra `preview.html` that references images externally). Use `-Open` only when the user wants the report opened.
+- `make_report.ps1` switches: `-Force` (ignore cache and rerun every stage), `-Open` (open the HTML in a browser when done), `-PrepareAI` (also emit the lightweight AI JSON), `-Chapter 9,12` (limit `-PrepareAI` to specific chapters, range 1-12), `-ExternalImages` (emit an extra `preview_yyyy_mm_dd.html` that references images externally). Use `-Open` only when the user wants the report opened.
 
 ## Implementation Guidance
 - Keep the GUI as a thin orchestrator around the API export and report builder scripts. Avoid duplicating analysis or rendering logic in `src/tetrio_report_gui.pyw`.

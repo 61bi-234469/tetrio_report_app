@@ -22,7 +22,7 @@ python .\make_report.py `
 生成物:
 
 ```text
-output/yyyy_mm_dd_your_username_tetrio_performance_report.html
+output/your_username_tetrio_performance_report_yyyy_mm_dd.html
 cache/normalized_rounds.csv
 cache/analysis_summary.json
 cache/ai_analysis_payload.json

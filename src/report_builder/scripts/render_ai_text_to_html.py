@@ -55,7 +55,7 @@ def normalize_regular(section: dict) -> dict:
 def build_context(text: dict, report_data: dict) -> dict:
     meta = text.get("_meta", {}) if isinstance(text.get("_meta"), dict) else {}
     return {
-        "ai_model": text_or_dash(meta.get("ai_model") or "AIエージェントCLI"),
+        "ai_model": text_or_dash(meta.get("ai_model")),
         "player_name": text_or_dash(meta.get("player_name") or player_from_report(report_data)),
         "source_period": text_or_dash(meta.get("source_period") or period_from_report(report_data)),
         "generated_date": text_or_dash(

@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 import shutil
 import subprocess
@@ -49,11 +50,129 @@ def check_auth(spec: dict) -> bool:
     return any(os.environ.get(name) for name in spec.get("auth_env", []))
 
 
+def configured_model_arg(spec: dict) -> str | None:
+    args = [str(item) for item in spec.get("base_args", [])]
+    for index, arg in enumerate(args):
+        if arg in {"--model", "-m"} and index + 1 < len(args):
+            return args[index + 1].strip() or None
+        for prefix in ("--model=", "-m="):
+            if arg.startswith(prefix):
+                return arg[len(prefix) :].strip() or None
+    return None
+
+
+def _format_version_tokens(tokens: list[str]) -> str:
+    result: list[str] = []
+    number_run: list[str] = []
+    for token in tokens:
+        if token.isdigit():
+            number_run.append(token)
+            continue
+        if number_run:
+            result.append(".".join(number_run))
+            number_run = []
+        result.append(token.title())
+    if number_run:
+        result.append(".".join(number_run))
+    return " ".join(result)
+
+
+def format_claude_model(raw_model: str) -> str:
+    raw_model = raw_model.strip()
+    if raw_model.lower().startswith("claude "):
+        return raw_model
+
+    normalized = raw_model.lower().replace("_", "-")
+    if normalized.startswith("claude-"):
+        normalized = normalized.removeprefix("claude-")
+    normalized = normalized.removesuffix("-latest")
+    tokens = [token for token in re.split(r"[-\s]+", normalized) if token]
+    families = {"opus": "Opus", "sonnet": "Sonnet", "haiku": "Haiku"}
+
+    if tokens and tokens[0] in families:
+        family = families[tokens[0]]
+        rest = _format_version_tokens(tokens[1:])
+        return f"Claude {family}{(' ' + rest) if rest else ''}"
+
+    for index, token in enumerate(tokens):
+        if token not in families:
+            continue
+        family = families[token]
+        before = _format_version_tokens(tokens[:index])
+        after = _format_version_tokens(tokens[index + 1 :])
+        version = " ".join(part for part in (before, after) if part)
+        return f"Claude {family}{(' ' + version) if version else ''}"
+
+    label = raw_model.replace("_", " ").replace("-", " ").strip()
+    return f"Claude {label}" if label else "Claude"
+
+
+def format_codex_model(raw_model: str) -> str:
+    label = raw_model.strip().replace("_", "-")
+    parts = [part for part in re.split(r"[-\s]+", label) if part]
+    if not parts:
+        return label
+    display_parts = []
+    index = 0
+    while index < len(parts):
+        part = parts[index]
+        lower = part.lower()
+        if lower == "gpt" and index + 1 < len(parts):
+            display_parts.append(f"GPT-{parts[index + 1]}")
+            index += 2
+            continue
+        if lower == "gpt":
+            display_parts.append("GPT")
+        elif lower == "codex":
+            display_parts.append("Codex")
+        else:
+            display_parts.append(part.upper() if part.replace(".", "").isdigit() else part.title())
+        index += 1
+    return " ".join(display_parts)
+
+
+def ai_model_display_name(agent: str, spec: dict) -> str | None:
+    configured = str(spec.get("model_display_name", "")).strip()
+    if configured:
+        return configured
+
+    raw_model = configured_model_arg(spec)
+    if raw_model is None:
+        return None
+    if agent == "claude":
+        return format_claude_model(raw_model)
+    if agent == "codex":
+        return format_codex_model(raw_model)
+    return raw_model
+
+
+def fill_ai_model_meta(extracted: str, agent: str, spec: dict) -> tuple[str, str | None]:
+    data = json.loads(extracted)
+    if not isinstance(data, dict):
+        return extracted, None
+
+    meta = data.get("_meta")
+    if not isinstance(meta, dict):
+        meta = {}
+
+    current = str(meta.get("ai_model", "")).strip()
+    if current and current not in {"-", "AIエージェントCLI"}:
+        return json.dumps(data, ensure_ascii=False, indent=2), current
+
+    display_name = ai_model_display_name(agent, spec)
+    if display_name:
+        meta["ai_model"] = display_name
+        data["_meta"] = meta
+        return json.dumps(data, ensure_ascii=False, indent=2), display_name
+    return json.dumps(data, ensure_ascii=False, indent=2), None
+
+
 def do_check(agent: str, spec: dict) -> int:
     path = resolve_executable(spec)
     info: dict[str, object] = {
         "agent": agent,
         "display_name": spec.get("display_name", agent),
+        "model_display_name": ai_model_display_name(agent, spec),
         "executable": spec["executable"],
         "found": path is not None,
         "path": path,
@@ -284,6 +403,7 @@ def do_run(agent: str, spec: dict, quality: str) -> int:
         "quality": quality,
         "prompt_file": str(prompt_file),
         "found": path is not None,
+        "model_display_name": ai_model_display_name(agent, spec),
     }
 
     if path is None:
@@ -320,8 +440,10 @@ def do_run(agent: str, spec: dict, quality: str) -> int:
     raw_path.write_text(stdout, encoding="utf-8")
 
     extracted = extract_json(stdout) if stdout else None
+    rendered_model_name = None
     if extracted is not None:
-        json_path.write_text(extracted, encoding="utf-8")
+        report_text, rendered_model_name = fill_ai_model_meta(extracted, agent, spec)
+        json_path.write_text(report_text, encoding="utf-8")
 
     error_hint = classify_failure(agent, spec, stdout, stderr)
     auth_status = read_auth_status(path, agent)
@@ -339,6 +461,7 @@ def do_run(agent: str, spec: dict, quality: str) -> int:
             "raw_output_path": str(raw_path),
             "json_extracted": extracted is not None,
             "json_path": str(json_path) if extracted is not None else None,
+            "rendered_model_name": rendered_model_name,
             "partial_output": (exit_code not in (0, None)) or timed_out,
         }
     )

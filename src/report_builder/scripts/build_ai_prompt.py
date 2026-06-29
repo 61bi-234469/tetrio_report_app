@@ -207,6 +207,12 @@ def build_schema() -> dict:
 
 def schema_example() -> str:
     example = {
+        "_meta": {
+            "ai_model": "Claude Opus 4.8",
+            "player_name": "",
+            "source_period": "",
+            "generated_date": "",
+        },
         "overview": {
             "key": "TRは大きく伸び、直近は攻撃面の底上げが見えます。",
             "bullets": [
@@ -281,6 +287,7 @@ def build_agent_prompt(quality: str, out_dir: Path) -> str:
     lines.append("- `summary`: `key`、`body`（3〜5文）。")
     lines.append("- `method`: `key`、`bullets`（主要な読み、逆因果、選択バイアス、数値だけでは判別できない要素）。")
     lines.append("- `evidence`: `body`（試合数、ラウンド数、対象期間、保留事項）。")
+    lines.append("- `_meta.ai_model`: このJSONを生成しているあなた自身のAIモデル名（例: `Claude Opus 4.8`）。分からない場合は `-`。")
     lines.append("")
     lines.append("JSON例:")
     lines.append("")

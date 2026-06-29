@@ -44,19 +44,33 @@ METRIC_FORMULA_NOTICE = (
 )
 
 
-def build_output_paths(username: str, output_dir: str | Path | None = None) -> dict[str, Path]:
+def build_output_paths(
+    username: str,
+    output_dir: str | Path | None = None,
+    output_layout: str = "flat",
+) -> dict[str, Path]:
     """Build the set of output file paths for a given username and directory."""
     base = Path(output_dir) if output_dir else Path(".")
+    if output_layout == "grouped":
+        user_base = base / username
+        raw_base = user_base / "raw"
+        csv_base = user_base / "csv"
+        parquet_base = user_base / "parquet"
+    elif output_layout == "flat":
+        raw_base = csv_base = parquet_base = base
+    else:
+        raise ValueError(f"Unknown output layout: {output_layout}")
+
     return {
-        "raw": base / f"{username}_tetra_league_raw.json",
-        "match_csv": base / f"{username}_tetra_league_matches.csv",
-        "round_csv": base / f"{username}_tetra_league_rounds.csv",
-        "match_parquet": base / f"{username}_tetra_league_matches.parquet",
-        "round_parquet": base / f"{username}_tetra_league_rounds.parquet",
-        "match_params_csv": base / f"{username}_tetra_league_matches_with_params.csv",
-        "match_params_parquet": base / f"{username}_tetra_league_matches_with_params.parquet",
-        "round_params_csv": base / f"{username}_tetra_league_rounds_with_params.csv",
-        "round_params_parquet": base / f"{username}_tetra_league_rounds_with_params.parquet",
+        "raw": raw_base / f"{username}_tetra_league_raw.json",
+        "match_csv": csv_base / f"{username}_tetra_league_matches.csv",
+        "round_csv": csv_base / f"{username}_tetra_league_rounds.csv",
+        "match_parquet": parquet_base / f"{username}_tetra_league_matches.parquet",
+        "round_parquet": parquet_base / f"{username}_tetra_league_rounds.parquet",
+        "match_params_csv": csv_base / f"{username}_tetra_league_matches_with_params.csv",
+        "match_params_parquet": parquet_base / f"{username}_tetra_league_matches_with_params.parquet",
+        "round_params_csv": csv_base / f"{username}_tetra_league_rounds_with_params.csv",
+        "round_params_parquet": parquet_base / f"{username}_tetra_league_rounds_with_params.parquet",
     }
 
 STAT_FIELDS = {
@@ -530,6 +544,7 @@ def write_api_cache_meta(
 ) -> None:
     if cached_until is None:
         return
+    raw_output.parent.mkdir(parents=True, exist_ok=True)
     meta = {
         "username": username,
         "max_matches": max_matches,
@@ -1056,6 +1071,7 @@ def save_csv(rows: list[dict[str, Any]], path: Path) -> None:
     if not rows:
         raise RuntimeError(f"No rows to save: {path}")
 
+    path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8-sig", newline="") as file:
         writer = csv.DictWriter(file, fieldnames=fieldnames_for(rows), extrasaction="ignore")
         writer.writeheader()
@@ -1074,6 +1090,7 @@ def save_parquet(rows: list[dict[str, Any]], path: Path) -> None:
     if not rows:
         raise RuntimeError(f"No rows to save: {path}")
 
+    path.parent.mkdir(parents=True, exist_ok=True)
     try:
         import pyarrow as pa
         import pyarrow.parquet as pq
@@ -1217,6 +1234,15 @@ def parse_args() -> argparse.Namespace:
         help="Directory to write output files into. Default: current directory.",
     )
     parser.add_argument(
+        "--output-layout",
+        choices=("flat", "grouped"),
+        default="flat",
+        help=(
+            "Output layout. 'flat' writes all files directly under --output-dir. "
+            "'grouped' writes data/<user>/{raw,csv,parquet}. Default: flat."
+        ),
+    )
+    parser.add_argument(
         "--outputs",
         choices=("all", "csv", "parquet"),
         default="all",
@@ -1259,11 +1285,12 @@ def main() -> None:
     source = "json" if args.from_raw else args.source
     username = validate_username(args.username)
 
-    paths = build_output_paths(username, args.output_dir)
+    paths = build_output_paths(username, args.output_dir, args.output_layout)
     if args.output_dir:
         Path(args.output_dir).mkdir(parents=True, exist_ok=True)
 
     raw_output = paths["raw"]
+    raw_output.parent.mkdir(parents=True, exist_ok=True)
 
     # Resolve the fetch limit: --all or --max-matches 0 means "every match".
     max_matches = None if (args.all or not args.max_matches) else args.max_matches
@@ -1273,7 +1300,10 @@ def main() -> None:
     else:
         records = None if args.force_fetch else load_cached_records(raw_output, username, max_matches)
         if records is None:
-            records, cached_until = fetch_all_league_records(username, max_matches, args.output_dir)
+            records, cached_until = fetch_all_league_records(
+                username, max_matches, raw_output.parent
+            )
+            raw_output.parent.mkdir(parents=True, exist_ok=True)
             raw_output.write_text(
                 json.dumps(records, ensure_ascii=False, indent=2),
                 encoding="utf-8",

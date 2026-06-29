@@ -17,6 +17,7 @@ import shutil
 import subprocess
 import threading
 import time
+from datetime import datetime
 from pathlib import Path
 
 import tkinter as tk
@@ -69,8 +70,10 @@ DEFAULT_CONFIG = {
     "step_api": True,
     "step_report": True,
     "open_report": True,
+    "open_output_folder": True,
     "save_csv": False,
     "save_base_files": False,
+    "save_source_data_copy": True,
     "step_ai_report": False,
     "ai_report_method": "manual_chat",
     "ai_agent": "codex",
@@ -146,6 +149,9 @@ class ReportLauncherApp:
         self.step_api_var = tk.BooleanVar(value=bool(cfg["step_api"]))
         self.step_report_var = tk.BooleanVar(value=bool(cfg["step_report"]))
         self.open_report_var = tk.BooleanVar(value=bool(cfg["open_report"]))
+        self.open_output_folder_var = tk.BooleanVar(
+            value=bool(cfg["open_output_folder"])
+        )
         ttk.Checkbutton(
             steps, text="TETR.IOから戦績データを取得する",
             variable=self.step_api_var,
@@ -164,6 +170,11 @@ class ReportLauncherApp:
             variable=self.open_report_var,
         )
         self.open_report_check.pack(anchor="w")
+        self.open_output_folder_check = ttk.Checkbutton(
+            steps, text="作成後に保存先フォルダーを開く",
+            variable=self.open_output_folder_var,
+        )
+        self.open_output_folder_check.pack(anchor="w")
 
         row += 1
         api_note = ttk.Label(
@@ -183,6 +194,9 @@ class ReportLauncherApp:
         options.grid(row=row, column=0, columnspan=2, sticky="ew", **pad)
         self.save_csv_var = tk.BooleanVar(value=bool(cfg["save_csv"]))
         self.save_base_files_var = tk.BooleanVar(value=bool(cfg["save_base_files"]))
+        self.save_source_data_copy_var = tk.BooleanVar(
+            value=bool(cfg["save_source_data_copy"])
+        )
         ttk.Checkbutton(
             options, text="Parquetに加えてCSV形式でも保存する",
             variable=self.save_csv_var,
@@ -190,6 +204,10 @@ class ReportLauncherApp:
         ttk.Checkbutton(
             options, text="派生指標を追加する前の元データも残す",
             variable=self.save_base_files_var,
+        ).pack(anchor="w")
+        ttk.Checkbutton(
+            options, text="レポート保存先に使用データのコピーも保存する",
+            variable=self.save_source_data_copy_var,
         ).pack(anchor="w")
 
         row += 1
@@ -281,6 +299,9 @@ class ReportLauncherApp:
         self.open_report_check.configure(
             state="normal" if any_report else "disabled"
         )
+        self.open_output_folder_check.configure(
+            state="normal" if any_report else "disabled"
+        )
 
     def _toggle_ai_report_options(self) -> None:
         on = self.step_ai_report_var.get()
@@ -316,8 +337,10 @@ class ReportLauncherApp:
             "step_api": self.step_api_var.get(),
             "step_report": self.step_report_var.get(),
             "open_report": self.open_report_var.get(),
+            "open_output_folder": self.open_output_folder_var.get(),
             "save_csv": self.save_csv_var.get(),
             "save_base_files": self.save_base_files_var.get(),
+            "save_source_data_copy": self.save_source_data_copy_var.get(),
             "step_ai_report": self.step_ai_report_var.get(),
             "ai_report_method": _label_to_value(
                 AI_METHOD_CHOICES, self.ai_method_var.get(), "manual_chat"
@@ -393,8 +416,10 @@ class ReportLauncherApp:
             "step_api": self.step_api_var.get(),
             "step_report": self.step_report_var.get(),
             "open_report": self.open_report_var.get(),
+            "open_output_folder": self.open_output_folder_var.get(),
             "save_csv": self.save_csv_var.get(),
             "save_base_files": self.save_base_files_var.get(),
+            "save_source_data_copy": self.save_source_data_copy_var.get(),
             "step_ai_report": self.step_ai_report_var.get(),
             "ai_report_method": _label_to_value(
                 AI_METHOD_CHOICES, self.ai_method_var.get(), "manual_chat"
@@ -493,14 +518,7 @@ class ReportLauncherApp:
             python_exe = self._python_exe()
 
             player_id = p["username"]
-            rounds_pq = (
-                EXPORT_OUTPUT_DIR
-                / f"{player_id}_tetra_league_rounds_with_params.parquet"
-            )
-            matches_pq = (
-                EXPORT_OUTPUT_DIR
-                / f"{player_id}_tetra_league_matches_with_params.parquet"
-            )
+            rounds_pq, matches_pq = self._report_input_paths(player_id)
 
             # --- API取得 ---
             if p["step_api"]:
@@ -515,6 +533,7 @@ class ReportLauncherApp:
                     "--username", player_id,
                     "--outputs", "all" if p["save_csv"] else "parquet",
                     "--output-dir", str(EXPORT_OUTPUT_DIR),
+                    "--output-layout", "grouped",
                 ]
                 if not p["save_base_files"]:
                     cmd.append("--no-base-outputs")
@@ -526,6 +545,7 @@ class ReportLauncherApp:
                 if rc != 0:
                     self._log_write("\n[中断] API取得でエラーが発生しました。\n")
                     return
+                rounds_pq, matches_pq = self._report_input_paths(player_id)
 
             # --- 戦績レポート生成（①本体は常に作成、②はオプション） ---
             if p["step_report"] or p["step_ai_report"]:
@@ -571,18 +591,36 @@ class ReportLauncherApp:
                 self._log_write(
                     "\n========== レポートをreportsフォルダーへ保存 ==========\n"
                 )
-                saved_report = self._copy_latest_report(player_id)
-                saved_ai_report = None
-                if p["step_ai_report"]:
-                    saved_ai_report = self._copy_ai_outputs(
-                        player_id, p, since=run_started
+                run_output_dir = self._create_run_output_dir(player_id)
+                saved_report = self._copy_latest_report(player_id, run_output_dir)
+                saved_sources: list[Path] = []
+                if p["save_source_data_copy"]:
+                    saved_sources = self._copy_source_data(
+                        run_output_dir, [rounds_pq, matches_pq]
                     )
+                saved_ai_report = None
+                saved_ai_materials: list[Path] = []
+                if p["step_ai_report"]:
+                    saved_ai_report, saved_ai_materials = self._copy_ai_outputs(
+                        player_id, p, since=run_started, run_output_dir=run_output_dir
+                    )
+                self._write_run_manifest(
+                    run_output_dir,
+                    player_id,
+                    p,
+                    saved_report,
+                    saved_ai_report,
+                    saved_ai_materials,
+                    saved_sources,
+                )
 
                 if p["open_report"]:
                     if saved_report is not None:
                         self._open_file(saved_report)
                     if saved_ai_report is not None:
                         self._open_file(saved_ai_report)
+                if p["open_output_folder"]:
+                    self._open_file(run_output_dir)
 
             self._log_write("\n✅ 完了しました。\n")
         except Exception as exc:  # noqa: BLE001
@@ -590,25 +628,61 @@ class ReportLauncherApp:
         finally:
             self.root.after(0, self._finish)
 
-    def _copy_latest_report(self, player_id: str) -> Path | None:
+    @staticmethod
+    def _report_input_paths(player_id: str) -> tuple[Path, Path]:
+        grouped_rounds = (
+            EXPORT_OUTPUT_DIR
+            / player_id
+            / "parquet"
+            / f"{player_id}_tetra_league_rounds_with_params.parquet"
+        )
+        grouped_matches = (
+            EXPORT_OUTPUT_DIR
+            / player_id
+            / "parquet"
+            / f"{player_id}_tetra_league_matches_with_params.parquet"
+        )
+        if grouped_rounds.exists():
+            return grouped_rounds, grouped_matches
+
+        return (
+            EXPORT_OUTPUT_DIR
+            / f"{player_id}_tetra_league_rounds_with_params.parquet",
+            EXPORT_OUTPUT_DIR
+            / f"{player_id}_tetra_league_matches_with_params.parquet",
+        )
+
+    def _create_run_output_dir(self, player_id: str) -> Path:
+        timestamp = datetime.now().strftime("%Y_%m_%d_%H%M%S")
+        base = RESULT_DIR / player_id / timestamp
+        candidate = base
+        suffix = 2
+        while candidate.exists():
+            candidate = RESULT_DIR / player_id / f"{timestamp}_{suffix}"
+            suffix += 1
+        candidate.mkdir(parents=True, exist_ok=False)
+        self._log_write(f"今回の保存先: {candidate}\n")
+        return candidate
+
+    def _copy_latest_report(self, player_id: str, run_output_dir: Path) -> Path | None:
         if not TEMPLATE_OUTPUT_DIR.exists():
             self._log_write("[警告] output フォルダーが見つかりません。\n")
             return None
         pattern = f"{player_id}_tetrio_performance_report_*.html"
-        candidates = sorted(
+        candidates = self._latest_html_candidates(
             TEMPLATE_OUTPUT_DIR.glob(pattern),
             key=lambda f: f.stat().st_mtime,
             reverse=True,
         )
         if not candidates:
             legacy_pattern = f"*_{player_id}_tetrio_performance_report.html"
-            candidates = sorted(
+            candidates = self._latest_html_candidates(
                 TEMPLATE_OUTPUT_DIR.glob(legacy_pattern),
                 key=lambda f: f.stat().st_mtime,
                 reverse=True,
             )
         if not candidates:
-            candidates = sorted(
+            candidates = self._latest_html_candidates(
                 TEMPLATE_OUTPUT_DIR.glob("*.html"),
                 key=lambda f: f.stat().st_mtime,
                 reverse=True,
@@ -618,14 +692,43 @@ class ReportLauncherApp:
             return None
         src = candidates[0]
         RESULT_DIR.mkdir(parents=True, exist_ok=True)
-        dest = RESULT_DIR / src.name
+        report_dir = run_output_dir / "01_report"
+        report_dir.mkdir(parents=True, exist_ok=True)
+        dest = report_dir / src.name
         shutil.copy2(src, dest)
         self._log_write(f"保存しました: {dest}\n")
+
+        legacy_dest = RESULT_DIR / src.name
+        shutil.copy2(src, legacy_dest)
         return dest
 
+    @staticmethod
+    def _latest_html_candidates(paths, *, key, reverse: bool) -> list[Path]:
+        return sorted(
+            [path for path in paths if not path.name.endswith("_ai_report.html")],
+            key=key,
+            reverse=reverse,
+        )
+
+    def _copy_source_data(self, run_output_dir: Path, sources: list[Path]) -> list[Path]:
+        source_dir = run_output_dir / "03_source_data"
+        copied: list[Path] = []
+        for src in sources:
+            if not src.is_file():
+                continue
+            source_dir.mkdir(parents=True, exist_ok=True)
+            dest = source_dir / src.name
+            shutil.copy2(src, dest)
+            copied.append(dest)
+        if copied:
+            self._log_write("使用データを保存しました:\n")
+            for dest in copied:
+                self._log_write(f"  {dest}\n")
+        return copied
+
     def _copy_ai_outputs(
-        self, player_id: str, p: dict, since: float
-    ) -> Path | None:
+        self, player_id: str, p: dict, since: float, run_output_dir: Path
+    ) -> tuple[Path | None, list[Path]]:
         """②AI考察の素材と、自動作成できた場合のAI考察レポートHTMLを保存する。
 
         戻り値は開く対象となる②AIレポートHTML（無ければ None）。
@@ -644,6 +747,7 @@ class ReportLauncherApp:
 
         # AIチャット貼り付け手順の素材（JSON・プロンプト）を保存する。
         # AIエージェントCLIが失敗した場合も、同じ素材で手動手順へ切り替えられる。
+        saved_materials: list[Path] = []
         if p["ai_report_method"] == "manual_chat" or not ai_report_ready:
             summary_file = AI_QUALITY_SUMMARY.get(
                 p["ai_quality"], "summary_standard.json"
@@ -652,14 +756,18 @@ class ReportLauncherApp:
                 summary_file,
                 "prompt_chat.md",
             ]
-            saved_materials: list[Path] = []
+            materials_dir = run_output_dir / "02_ai_report" / "manual_materials"
             for name in material_files:
                 src = AI_CACHE_DIR / name
                 if not src.exists():
                     continue
-                dest = RESULT_DIR / f"{player_id}_ai_{name}"
+                materials_dir.mkdir(parents=True, exist_ok=True)
+                dest = materials_dir / name
                 shutil.copy2(src, dest)
                 saved_materials.append(dest)
+
+                legacy_dest = RESULT_DIR / f"{player_id}_ai_{name}"
+                shutil.copy2(src, legacy_dest)
             if saved_materials:
                 self._log_write(
                     "②AI素材を保存しました（外部AIチャットに渡せます）:\n"
@@ -673,7 +781,7 @@ class ReportLauncherApp:
 
         # ②AIレポートHTMLはAIエージェントCLIで自動作成した場合だけ取り込む。
         if p["ai_report_method"] != "agent_cli":
-            return None
+            return None, saved_materials
 
         src = ai_report_src
         if src is None or not ai_report_ready:
@@ -682,12 +790,61 @@ class ReportLauncherApp:
                 "CLI実行ログ（cache/ai/ai_agent_run.json）をご確認ください。"
                 "保存済みの素材でAIチャット貼り付け手順へ切り替えられます。\n"
             )
-            return None
+            return None, saved_materials
 
-        dest = RESULT_DIR / src.name
+        ai_report_dir = run_output_dir / "02_ai_report"
+        ai_report_dir.mkdir(parents=True, exist_ok=True)
+        dest = ai_report_dir / src.name
         shutil.copy2(src, dest)
         self._log_write(f"②AI考察レポートを保存しました: {dest}\n")
-        return dest
+
+        legacy_dest = RESULT_DIR / src.name
+        shutil.copy2(src, legacy_dest)
+        return dest, saved_materials
+
+    def _write_run_manifest(
+        self,
+        run_output_dir: Path,
+        player_id: str,
+        p: dict,
+        saved_report: Path | None,
+        saved_ai_report: Path | None,
+        saved_ai_materials: list[Path],
+        saved_sources: list[Path],
+    ) -> None:
+        def rel(path: Path | None) -> str | None:
+            if path is None:
+                return None
+            try:
+                return path.relative_to(run_output_dir).as_posix()
+            except ValueError:
+                return str(path)
+
+        manifest = {
+            "schema_version": 1,
+            "created_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+            "player": player_id,
+            "output_root": str(run_output_dir),
+            "report_html": rel(saved_report),
+            "ai_report_html": rel(saved_ai_report),
+            "ai_materials": [rel(path) for path in saved_ai_materials],
+            "source_data": [rel(path) for path in saved_sources],
+            "source_data_copy_enabled": bool(p["save_source_data_copy"]),
+            "ai": {
+                "enabled": bool(p["step_ai_report"]),
+                "method": p["ai_report_method"] if p["step_ai_report"] else None,
+                "quality": p["ai_quality"] if p["step_ai_report"] else None,
+                "agent": (
+                    p["ai_agent"]
+                    if p["step_ai_report"] and p["ai_report_method"] == "agent_cli"
+                    else None
+                ),
+                "agent_report_ready": saved_ai_report is not None,
+            },
+        }
+        path = run_output_dir / "run_manifest.json"
+        path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+        self._log_write(f"実行情報を保存しました: {path}\n")
 
     @staticmethod
     def _expected_ai_report_path(player_id: str) -> Path | None:

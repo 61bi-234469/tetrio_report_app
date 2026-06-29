@@ -84,17 +84,19 @@ Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 3. 必要な実行内容をチェックします。
 4. `実行` をクリックします。
 
-標準設定では、TETR.IOから戦績データを取得し、HTMLレポートを作成して、完了後にブラウザーで開きます。
+標準設定では、TETR.IOから戦績データを取得し、HTMLレポートを作成して、完了後にブラウザーと保存先フォルダーを開きます。
 
 ## GUIの主な項目
 
 - `取得できる全試合を対象にする`: 試合数の上限を使わず、取得可能な Tetra League 履歴を対象にします。
-- `TETR.IOから戦績データを取得する`: APIからデータを取得し、レポート用の Parquet を作成します。
+- `TETR.IOから戦績データを取得する`: APIからデータを取得し、レポート用の Parquet を `data\<user>\parquet` に作成します。
 - `① 戦績レポート（本体・HTML）を作成する`: 保存済み Parquet から①戦績レポート（本体・HTML）を作成します。
 - `② AI考察レポートを作る`: ②AI考察レポートを作成します。下の「② AI考察レポート設定」で作成方法・品質・連携AIエージェントCLIを選べます。
 - `作成後にレポートをブラウザーで開く`: 生成したレポートを既定のブラウザーで開きます。
+- `作成後に保存先フォルダーを開く`: 今回作成した `reports\<user>\<日時>` フォルダーを開きます。
 - `Parquetに加えてCSV形式でも保存する`: 確認や表計算ソフト用にCSVも出力します。
 - `派生指標を追加する前の元データも残す`: API取得直後の中間データも保存します。
+- `レポート保存先に使用データのコピーも保存する`: 今回のレポートに使った Parquet を `03_source_data` にコピーします。
 - `② AI考察レポート設定 > 作成方法`: 「AIチャット用素材を保存」または「AIエージェントCLIで自動作成」。
 - `② AI考察レポート設定 > 品質`: 「標準」「高品質」「低コスト」「従来JSON（ai_appendix_data）」。
 - `② AI考察レポート設定 > 連携AIエージェントCLI`: 「Codex CLI」または「Claude Code CLI」（自動作成を選んだ場合だけ有効）。
@@ -108,7 +110,7 @@ py -3 -m venv "src\report_builder\.venv"
 & "src\report_builder\.venv\Scripts\python.exe" -m pip install -r "src\report_builder\requirements.txt"
 ```
 
-APIから直近100試合を取得します。
+APIから直近100試合を取得します。コマンド実行では、互換性のため既定では `data` 直下へ従来どおり保存します。GUIと同じ `data\<user>\raw|csv|parquet` 構成にする場合は `--output-layout grouped` を付けます。
 
 ```powershell
 & "src\report_builder\.venv\Scripts\python.exe" `
@@ -146,8 +148,16 @@ APIから直近100試合を取得します。
 
 ## 出力
 
-- API取得データ: `data`
-- ①戦績レポート（本体・HTML）: `reports`
+- GUIのAPI取得データ: `data\<user>\raw`, `data\<user>\parquet`, `data\<user>\csv`
+- コマンドのAPI取得データ: 既定は `data` 直下。`--output-layout grouped` 指定時はGUIと同じ階層です。
+- GUIの成果物: `reports\<user>\<yyyy_mm_dd_HHMMSS>`
+  - ①戦績レポート（本体・HTML）: `01_report`
+  - ②AI考察レポートHTML: `02_ai_report`
+  - AIチャット用素材: `02_ai_report\manual_materials`
+  - 使用データのコピー: `03_source_data`
+  - 実行情報: `run_manifest.json`
+- 互換用コピー: 当面は①HTML、②HTML、AIチャット用素材を `reports` 直下にも保存します。
+- コマンドの①戦績レポート（本体・HTML）: `src/report_builder/output`
 - ②AI考察レポート:
   - HTML（方法B・自動作成が成功した場合）: `reports`（GUI）/ `src/report_builder/output`（コマンド）
   - AI用JSON・プロンプト: `src/report_builder/cache/ai`（コマンド）。GUIは方法A、またはAIエージェントCLI失敗時の手動切り替え用として、これらを `reports` にも保存します。

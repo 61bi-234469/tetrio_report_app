@@ -84,21 +84,21 @@ cache/records.json
 
 ## 4. AIを使う場合
 
-自動生成された文章をさらに整える場合も、完成HTMLは渡しません。
+②AI考察レポート用の素材を作る場合も、完成HTMLは渡しません。
 
 AIへ渡すもの：
 
 ```text
-cache/ai_analysis_payload.json
-prompts/prompt_ai_polish.md
+cache/ai/ai_appendix_data.json
+cache/ai/prompt_chat.md
 ```
 
-`ai_analysis_payload.json`には集計済みの数値だけが入り、CSV、CSS、Base64画像は含まれません。
-特定章だけを修正したら：
+`ai_appendix_data.json`には集計済みの数値だけが入り、CSV、CSS、Base64画像は含まれません。
+AI本文JSONを作成したら：
 
 ```powershell
-python scripts\update_chapter.py 8 new_chapter_08.html
-python scripts\build_report.py
+python scripts\validate_ai_text.py
+python scripts\render_ai_text_to_html.py
 ```
 
 ## 5. 個別実行

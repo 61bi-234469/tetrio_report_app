@@ -6,7 +6,7 @@
     "base_args": ["exec", "--skip-git-repo-check", "--cd", "."],
     "sandbox_args": ["--sandbox", "danger-full-access"],
     "network": false,
-    "prompt_via": "argument",
+    "prompt_via": "stdin",
     "version_args": ["--version"],
     "timeout_seconds": 600,
     "auth_env": ["OPENAI_API_KEY", "CODEX_API_KEY"]

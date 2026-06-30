@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Generate report charts from an AnalysisBundle."""
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from report_analysis import AnalysisBundle, STYLE_ORDER, analyze_csv
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
-# ローリング平均の窓幅（試合数）。トレンド系チャート共通。
+# ローリング平均の窓幅（マッチ数）。トレンド系チャート共通。
 ROLLING_WINDOW = 10
 
 GROWTH_STABILITY_METRICS = [
@@ -122,7 +122,7 @@ def chart_tr_history(bundle: AnalysisBundle, out: Path) -> None:
         est_tr = pd.to_numeric(m[est_tr_col], errors="coerce").rolling(
             window=ROLLING_WINDOW, min_periods=max(3, ROLLING_WINDOW // 2)
         ).mean()
-        line, = ax.plot(m["played_at_jst"], est_tr, linewidth=1.0, alpha=0.75, color="#38bdf8", label=f"Est. TR（{ROLLING_WINDOW}試合ローリング平均）", zorder=2)
+        line, = ax.plot(m["played_at_jst"], est_tr, linewidth=1.0, alpha=0.75, color="#38bdf8", label=f"Est. TR（{ROLLING_WINDOW}マッチローリング平均）", zorder=2)
         bg_handles.append(line)
         rating_values.append(est_tr)
     tr_line, = ax.plot(m["played_at_jst"], m["tr_after"], linewidth=1.35, label="TR", zorder=3, color="#f97316")
@@ -151,7 +151,7 @@ def chart_metric_distributions(bundle: AnalysisBundle, out: Path) -> None:
         ax.boxplot(data, tick_labels=["自分", "相手"], showfliers=False)
         ax.set_title(label)
         ax.grid(axis="y", alpha=0.25)
-    fig.suptitle("主要指標の分布（試合平均）", y=1.02)
+    fig.suptitle("主要指標の分布（マッチ平均）", y=1.02)
     fig.tight_layout()
     save(fig, out / "02_metric_distributions.png")
 
@@ -205,7 +205,7 @@ def draw_radar(labels, own, opp, title, subtitle, output, radial_max=None) -> No
 def _recent_subtitle(bundle: AnalysisBundle, tail: str = "") -> str:
     scope = bundle.summary.get("recent_scope", {})
     nm = scope.get("n_matches")
-    base = f"直近{nm}試合・試合単位" if nm else "直近100試合・試合単位"
+    base = f"直近{nm}マッチ・マッチ単位" if nm else "直近100マッチ・マッチ単位"
     return f"{base} - {tail}" if tail else base
 
 
@@ -248,9 +248,9 @@ def chart_style_trend(bundle: AnalysisBundle, out: Path) -> None:
             continue
         ax.plot(m["played_at_jst"], series, linewidth=1.9, label=style, color=style_colors.get(style))
         plotted = True
-    ax.set_title(f"4スタイル推移（自分・{window}試合ローリング平均）", fontsize=13)
+    ax.set_title(f"4スタイル推移（自分・{window}マッチローリング平均）", fontsize=13)
     ax.set_ylabel("スタイル傾向")
-    ax.set_xlabel("JSTの試合日時")
+    ax.set_xlabel("JSTのマッチ日時")
     ax.grid(alpha=0.3)
     if plotted:
         ax.legend(loc="center left", bbox_to_anchor=(1.01, 0.5), frameon=False, fontsize=10)
@@ -311,7 +311,7 @@ def chart_dominance(bundle: AnalysisBundle, out: Path) -> None:
     ax.set_yticks([0, 1], ["VS劣位", "VS優位"])
     for i in range(2):
         for j in range(2):
-            label = f"{mat[i,j]:.1f}%\nn={ns[i,j]}" if np.isfinite(mat[i, j]) else f"窶能nn={ns[i,j]}"
+            label = f"{mat[i,j]:.1f}%\nn={ns[i,j]}" if np.isfinite(mat[i, j]) else f"—\nn={ns[i,j]}"
             ax.text(j, i, label, ha="center", va="center")
     ax.set_title("APM・VS相対優位による勝率")
     fig.colorbar(im, ax=ax, label="勝率（%）")
@@ -368,7 +368,7 @@ def chart_streaks(bundle: AnalysisBundle, out: Path) -> None:
     ax.bar(lengths - width / 2, win_counts, width, label="連勝")
     ax.bar(lengths + width / 2, loss_counts, width, label="連敗")
     ax.set_title("連勝・連敗の長さ分布")
-    ax.set_xlabel("連続試合数")
+    ax.set_xlabel("連勝・連敗マッチ数")
     ax.set_ylabel("発生回数")
     ax.set_xticks(lengths)
     ax.legend(frameon=False)
@@ -388,6 +388,7 @@ def chart_tiebreak(bundle: AnalysisBundle, out: Path) -> None:
         for i, r in enumerate(routes):
             ax.text(i, max(r["win_rate"], r["expected"]) * 100 + 2, f"n={r['n']}", ha="center", fontsize=8)
     ax.set_ylim(0, 100)
+    ax.axhline(50, linewidth=1, linestyle="--")
     ax.set_title("タイブレーク到達経路別の実績 vs 期待")
     ax.set_ylabel("勝率（%）")
     ax.legend(frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.12), ncol=2)
@@ -408,8 +409,9 @@ def chart_session_position(bundle: AnalysisBundle, out: Path) -> None:
         for i, r in enumerate(d):
             ax.text(i, max(r["actual"], r["expected"]) * 100 + 1.5, f"n={r['n']}", ha="center", fontsize=8)
     ax.set_ylim(0, 100)
-    ax.set_title("セッション内の連戦位置別勝率")
+    ax.set_title("セッション内のマッチ位置別勝率")
     ax.set_ylabel("勝率（%）")
+    ax.axhline(50, linewidth=1, linestyle="--")
     ax.legend(frameon=False)
     ax.grid(axis="y", alpha=0.25)
     save(fig, out / "16_session_position.png")
@@ -572,8 +574,8 @@ def chart_monthly_trends(bundle: AnalysisBundle, out: Path) -> None:
             ax.set_xlim(m["played_at_jst"].min(), m["played_at_jst"].max())
         ax.xaxis.set_major_locator(mdates.AutoDateLocator(minticks=5, maxticks=10))
         ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m"))
-    axes[-1].set_xlabel("JSTの試合日時")
-    fig.suptitle(f"指標推移（初期ローリング平均＝100、{window}試合窓）", y=0.995, fontsize=13)
+    axes[-1].set_xlabel("JSTのマッチ日時")
+    fig.suptitle(f"指標推移（初期ローリング平均＝100、{window}マッチ窓）", y=0.995, fontsize=13)
     fig.autofmt_xdate()
     fig.tight_layout(rect=(0, 0, 0.9, 0.965), h_pad=3.4)
     save(fig, out / "05_monthly_normalized_trends.png")

@@ -2,7 +2,7 @@
 """複数の入力ファイル間の概算トークン量と削減率を比較する。
 
 旧来の --html / --payload の2入力比較に加え、--input で名前付き入力を複数登録し、
---pair で任意の比較ペアを指定できる。--preset は本設計の標準比較セットを
+--pair で任意の比較ペアを指定できる。--preset は現在の標準素材を
 キャッシュから自動構成する。
 """
 from __future__ import annotations
@@ -82,9 +82,7 @@ def preset_inputs() -> dict[str, tuple[Path, str | None]]:
             inputs["completed_html"] = (html_path, "html")
     candidates = {
         "ai_payload": cache / "ai_analysis_payload.json",
-        "summary_standard": cache / "ai" / "summary_standard.json",
-        "summary_rich": cache / "ai" / "summary_rich.json",
-        "summary_compact": cache / "ai" / "summary_compact.json",
+        "ai_appendix": cache / "ai" / "ai_appendix_data.json",
         "report_text": cache / "ai" / "report_text.json",
     }
     for name, path in candidates.items():
@@ -95,9 +93,7 @@ def preset_inputs() -> dict[str, tuple[Path, str | None]]:
 
 PRESET_PAIRS = [
     ("completed_html", "ai_payload"),
-    ("ai_payload", "summary_standard"),
-    ("summary_standard", "summary_rich"),
-    ("ai_payload", "summary_compact"),
+    ("ai_payload", "ai_appendix"),
     ("completed_html", "report_text"),
 ]
 

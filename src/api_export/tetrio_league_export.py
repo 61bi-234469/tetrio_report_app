@@ -51,7 +51,11 @@ def build_output_paths(
 ) -> dict[str, Path]:
     """Build the set of output file paths for a given username and directory."""
     base = Path(output_dir) if output_dir else Path(".")
-    if output_layout == "grouped":
+    if output_layout == "typed":
+        raw_base = base / "raw"
+        csv_base = base / "csv"
+        parquet_base = base / "parquet"
+    elif output_layout == "grouped":
         user_base = base / username
         raw_base = user_base / "raw"
         csv_base = user_base / "csv"
@@ -1235,10 +1239,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--output-layout",
-        choices=("flat", "grouped"),
+        choices=("flat", "grouped", "typed"),
         default="flat",
         help=(
             "Output layout. 'flat' writes all files directly under --output-dir. "
+            "'typed' writes data/{raw,csv,parquet}. "
             "'grouped' writes data/<user>/{raw,csv,parquet}. Default: flat."
         ),
     )

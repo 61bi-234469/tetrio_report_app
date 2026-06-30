@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""TETR.IOラウンドCSVを試合・ラウンド単位で集計する中核モジュール。"""
+"""TETR.IOラウンドCSVをマッチ・ラウンド単位で集計する中核モジュール。"""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -57,7 +57,7 @@ OPPONENT_COLUMN = {
     "Cheese Index": "opponent_Cheese Index", "Area": "opponent_Area",
     EST_TR_COLUMN: f"opponent_{EST_TR_COLUMN}",
 }
-# 直近表示の主集計に使う試合数。サンプル数を増やすため各ラウンドを利用する。
+# 直近表示の主集計に使うマッチ数。サンプル数を増やすため各ラウンドを利用する。
 RECENT_MATCH_WINDOW = 100
 DEFAULT_SESSION_GAP_MINUTES = 10
 
@@ -631,7 +631,7 @@ def analyze_tiebreaks(rounds: pd.DataFrame, matches: pd.DataFrame) -> tuple[pd.D
         n = len(group)
         wins = int(group["won"].sum())
         lo, hi = _wilson_interval(wins, n)
-        # 期待超過は期待勝率を算出できる試合で実績側も揃える（win_rate/n/Wilsonは全試合のまま）。
+        # 期待超過は期待勝率を算出できるマッチで実績側も揃える（win_rate/n/Wilsonは全マッチのまま）。
         gve = group[group["expected_win"].notna()]
         route_summary.append({
             "route": route,
@@ -670,7 +670,7 @@ def build_score_state_rounds(rounds: pd.DataFrame, matches: pd.DataFrame) -> lis
     """ラウンド開始前スコアで状態を分類し、その状態での次ラウンド勝率を集計する。
 
     同点・リード・ビハインドはラウンド開始前のスコア差から判定する。マッチポイント状態は
-    target_score / opponent_score が両方ある試合のみで判定し、欠損試合は除外する。
+    target_score / opponent_score が両方あるマッチのみで判定し、欠損マッチは除外する。
     1ラウンドはスコア差分類とマッチポイント分類の両方に同時に該当しうる。
     """
     states: dict[str, dict[str, float]] = {
@@ -756,7 +756,7 @@ def build_monthly(matches: pd.DataFrame) -> pd.DataFrame:
             "official_win_rate": float(g["won"].mean()),
             "normal_win_rate": float(g.loc[~(g["dq_win"] | g["dq_loss"]), "won"].mean()) if (~(g["dq_win"] | g["dq_loss"])).any() else math.nan,
             "expected_win_rate": float(g["expected_win"].mean()),
-            # 期待超過は期待勝率を算出できる試合で実績側も揃える（official_win_rate等は全試合のまま）。
+            # 期待超過は期待勝率を算出できるマッチで実績側も揃える（official_win_rate等は全マッチのまま）。
             "expected_excess_rate": float(g.loc[g["expected_win"].notna(), "won"].mean() - g["expected_win"].mean()) if g["expected_win"].notna().any() else math.nan,
             "expected_excess_wins": float((g["won"].astype(float) - g["expected_win"]).sum()),
             "tr_start": _first_valid(g["tr_before"]),
@@ -796,25 +796,25 @@ def build_records(rounds: pd.DataFrame, matches: pd.DataFrame, summary_context: 
     valid_tr = matches.dropna(subset=["tr_after"])
     if len(valid_tr):
         row = valid_tr.loc[valid_tr["tr_after"].idxmax()]
-        add("最高TR", row["tr_after"], "TR", row, "試合後")
-    for col, name in [("tr_delta", "最大1試合TR増加"), ("tr_delta", "最大1試合TR減少")]:
+        add("最高TR", row["tr_after"], "TR", row, "マッチ後")
+    for col, name in [("tr_delta", "最大1マッチTR増加"), ("tr_delta", "最大1マッチTR減少")]:
         valid = matches.dropna(subset=[col])
         if len(valid):
             idx = valid[col].idxmax() if "増加" in name else valid[col].idxmin()
-            add(name, valid.loc[idx, col], "TR", valid.loc[idx], "単試合", "初期配置期は能力PRとして解釈しない")
+            add(name, valid.loc[idx, col], "TR", valid.loc[idx], "単マッチ", "初期配置期は能力PRとして解釈しない")
 
     match_metrics = {
-        "apm": ("単試合最高APM", "APM"), "pps": ("単試合最高PPS", "PPS"),
-        "vs": ("単試合最高VS", "VS"), "APP": ("単試合最高APP", "APP"),
-        "DS/Second": ("単試合最高DS/S", "DS/S"), "DS/Piece": ("単試合最高DS/P", "DS/P"),
-        "Garbage Effi.": ("単試合最高GbE", "GbE"), "Area": ("単試合最高Area", "Area"),
-        "VS/APM": ("単試合最高VS/APM", "VS/APM"),
+        "apm": ("単マッチ最高APM", "APM"), "pps": ("単マッチ最高PPS", "PPS"),
+        "vs": ("単マッチ最高VS", "VS"), "APP": ("単マッチ最高APP", "APP"),
+        "DS/Second": ("単マッチ最高DS/S", "DS/S"), "DS/Piece": ("単マッチ最高DS/P", "DS/P"),
+        "Garbage Effi.": ("単マッチ最高GbE", "GbE"), "Area": ("単マッチ最高Area", "Area"),
+        "VS/APM": ("単マッチ最高VS/APM", "VS/APM"),
     }
     for col, (name, unit) in match_metrics.items():
         valid = matches.replace([np.inf, -np.inf], np.nan).dropna(subset=[col])
         if len(valid):
             row = valid.loc[valid[col].idxmax()]
-            add(name, row[col], unit, row, "単試合平均")
+            add(name, row[col], unit, row, "単マッチ平均")
 
     single_round_note = "単ラウンドPRは切断・DQ・極短ラウンドの影響を受ける場合があります。"
     round_metrics = {
@@ -839,10 +839,10 @@ def build_records(rounds: pd.DataFrame, matches: pd.DataFrame, summary_context: 
     if len(matches) >= rolling_n:
         rolling = matches["won"].astype(float).rolling(rolling_n).mean()
         idx = rolling.idxmax()
-        add(f"連続{rolling_n}戦最高勝率", rolling.loc[idx], "%", matches.loc[idx], f"{rolling_n}戦窓")
+        add(f"連続{rolling_n}マッチ最高勝率", rolling.loc[idx], "%", matches.loc[idx], f"{rolling_n}マッチ窓")
 
-    add("最長連勝", summary_context["streaks"]["max_win"], "試合", None, "連続試合")
-    add("最長連敗", summary_context["streaks"]["max_loss"], "試合", None, "連続試合")
+    add("最長連勝", summary_context["streaks"]["max_win"], "マッチ", None, "連勝・連敗")
+    add("最長連敗", summary_context["streaks"]["max_loss"], "マッチ", None, "連勝・連敗")
     add("タイブレーク勝率", summary_context["tiebreak"].get("win_rate"), "%", None, "タイブレーク", f"n={summary_context['tiebreak'].get('n', 0)}")
     return records
 
@@ -886,7 +886,7 @@ def analyze_csv(
         peak_date = dd_date = pd.NaT
 
     recent_windows = []
-    # 直近窓は総試合数より小さいものだけ採用し、最後に全期間を1回だけ足す。
+    # 直近窓は総マッチ数より小さいものだけ採用し、最後に全期間を1回だけ足す。
     # （総数が500未満のときに500/1000が全期間と同値で重複表示されるのを防ぐ）
     window_sizes = [n for n in [100, 500, 1000] if n < len(completed)]
     window_sizes.append(len(completed))
@@ -894,10 +894,10 @@ def analyze_csv(
         n_eff = min(n, len(completed))
         g = completed.tail(n_eff)
         # n/wins/actualは窓全体（定義どおりの母集団）。expected/excessは期待勝率が
-        # 算出できる試合（expected_win欠損を除く）で揃え、対象数をexpected_nで明示する。
+        # 算出できるマッチ（expected_win欠損を除く）で揃え、対象数をexpected_nで明示する。
         ge = g[g["expected_win"].notna()]
         recent_windows.append({
-            "label": "全期間" if n == len(completed) else f"直近{n_eff}戦",
+            "label": "全期間" if n == len(completed) else f"直近{n_eff}マッチ",
             "n": int(n_eff),
             "wins": int(g["won"].sum()),
             "actual": float(g["won"].mean()),
@@ -910,7 +910,7 @@ def analyze_csv(
 
     metric_means = _metric_means(completed)
 
-    # 直近RECENT_MATCH_WINDOW試合分。レーダー/スタイル/相性の主表示に使う（試合単位）。
+    # 直近RECENT_MATCH_WINDOWマッチ分。レーダー/スタイル/相性の主表示に使う（マッチ単位）。
     recent_n = min(RECENT_MATCH_WINDOW, len(completed))
     recent_matches = completed.tail(recent_n)
     recent_ids = set(recent_matches.index)
@@ -918,7 +918,7 @@ def analyze_csv(
     recent_scope = {"n_matches": int(recent_n), "n_rounds": int(len(recent_rounds))}
     metrics_recent = _metric_means(recent_matches)
 
-    # 初期・直近N戦。
+    # 初期・直近Nマッチ。
     n_window = min(window_n, max(len(completed) // 3, 1))
     early = completed.head(n_window)
     recent = completed.tail(n_window)
@@ -990,7 +990,7 @@ def analyze_csv(
     for own in STYLE_ORDER:
         for opp in STYLE_ORDER:
             g = completed[(completed["self_style"] == own) & (completed["opponent_style"] == opp)]
-            # 実績・期待・超過・nを期待勝率を算出できる試合へ揃える。
+            # 実績・期待・超過・nを期待勝率を算出できるマッチへ揃える。
             g = g[g["expected_win"].notna()]
             style_matchups.append({
                 "self_style": own, "opponent_style": opp, "n": int(len(g)),
@@ -999,7 +999,7 @@ def analyze_csv(
                 "excess": float(g["won"].mean() - g["expected_win"].mean()) if len(g) else math.nan,
             })
 
-    # 直近表示用スタイル（試合単位）。
+    # 直近表示用スタイル（マッチ単位）。
     style_means_recent = {
         style: {
             "self": float(recent_matches[style].mean()) if style in recent_matches else math.nan,
@@ -1007,12 +1007,12 @@ def analyze_csv(
         }
         for style in STYLE_ORDER
     }
-    # 相性表も試合単位。代表スタイル別に実績勝率・期待勝率を集計する。
+    # 相性表もマッチ単位。代表スタイル別に実績勝率・期待勝率を集計する。
     style_matchups_recent = []
     for own in STYLE_ORDER:
         for opp in STYLE_ORDER:
             g = recent_matches[(recent_matches["self_style"] == own) & (recent_matches["opponent_style"] == opp)]
-            # 実績・期待・超過・nを期待勝率を算出できる試合へ揃える。
+            # 実績・期待・超過・nを期待勝率を算出できるマッチへ揃える。
             g = g[g["expected_win"].notna()]
             actual = float(g["won"].mean()) if len(g) else math.nan
             expected = float(g["expected_win"].mean()) if len(g) else math.nan
@@ -1030,7 +1030,7 @@ def analyze_csv(
     tr_valid = completed.dropna(subset=["tr_diff"]).copy()
     tr_valid["tr_gap_bin"] = pd.cut(tr_valid["tr_diff"], bins=tr_edges, labels=tr_labels, right=False)
     for label, g in tr_valid.groupby("tr_gap_bin", observed=False):
-        # 実績・期待・超過・nを期待勝率を算出できる試合へ揃える。
+        # 実績・期待・超過・nを期待勝率を算出できるマッチへ揃える。
         g = g[g["expected_win"].notna()]
         if len(g):
             tr_gap.append({
@@ -1074,7 +1074,7 @@ def analyze_csv(
         "comeback_two_points": comeback_two,
     }
 
-    # 直前の連勝・連敗段階別。相手強度を期待超過で補正し、能力指標は全完了試合平均との差分で出す。
+    # 直前の連勝・連敗段階別。相手強度を期待超過で補正し、能力指標は全完了マッチ平均との差分で出す。
     base_apm = float(completed["apm"].mean()) if "apm" in completed else float("nan")
     base_pps = float(completed["pps"].mean()) if "pps" in completed else float("nan")
     base_vs = float(completed["vs"].mean()) if "vs" in completed else float("nan")
@@ -1090,7 +1090,7 @@ def analyze_csv(
     ]
     streak_states = []
     for label, cond in streak_state_defs:
-        # 期待勝率を算出できる試合に揃える（実績・期待・超過・nを同一母集団にする）。
+        # 期待勝率を算出できるマッチに揃える（実績・期待・超過・nを同一母集団にする）。
         g = completed[cond(completed["streak_before"])]
         g = g[g["expected_win"].notna()]
         if len(g):
@@ -1104,13 +1104,13 @@ def analyze_csv(
                 "d_area": float(g["Area"].mean() - base_area),
             })
 
-    # セッション位置。1〜10戦目は1戦ずつ、11戦目以降をまとめる。
+    # セッション位置。1〜10マッチ目は1マッチずつ、11マッチ目以降をまとめる。
     pos_edges = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, np.inf]
-    pos_labels = ["1戦目", "2戦目", "3戦目", "4戦目", "5戦目", "6戦目", "7戦目", "8戦目", "9戦目", "10戦目", "11戦目以降"]
+    pos_labels = ["1マッチ目", "2マッチ目", "3マッチ目", "4マッチ目", "5マッチ目", "6マッチ目", "7マッチ目", "8マッチ目", "9マッチ目", "10マッチ目", "11マッチ目以降"]
     completed["session_position_bin"] = pd.cut(completed["session_position"], bins=pos_edges, labels=pos_labels, right=False)
     session_positions = []
     for label, g in completed.groupby("session_position_bin", observed=False):
-        # 期待勝率を算出できる試合に揃える（実績・期待・超過・nを同一母集団にする）。
+        # 期待勝率を算出できるマッチに揃える（実績・期待・超過・nを同一母集団にする）。
         g = g[g["expected_win"].notna()]
         if len(g):
             session_positions.append({
@@ -1123,26 +1123,26 @@ def analyze_csv(
                 "d_area": float(g["Area"].mean() - base_area),
             })
 
-    # セッション継続傾向。直前結果と「同一セッションで次の試合を続けたか」の関係から、
+    # セッション継続傾向。直前結果と「同一セッションで次のマッチを続けたか」の関係から、
     # 「負けているほど粘る」のか「勝てているから続ける」のかを読み取る。
-    # 継続判定は除外試合（DQ・無効・no contest・tie）も含む全試合の時系列で行い、通常試合の
-    # 直後に除外試合を挟んでも「セッションを続けた」と数える。勝敗での条件づけのみ通常分析対象試合。
+    # 継続判定は除外マッチ（DQ・無効・no contest・tie）も含む全マッチの時系列で行い、通常マッチの
+    # 直後に除外マッチを挟んでも「セッションを続けた」と数える。勝敗での条件づけのみ通常分析対象マッチ。
     mt = matches.sort_values(["played_at_jst", "match_number"], kind="stable")
     continued_full = mt["session_id"].shift(-1).eq(mt["session_id"])
     last_match_idx = mt.index[-1] if len(mt) else None
     last_session_id = mt["session_id"].iloc[-1] if len(mt) else None
     sc = completed.sort_values(["played_at_jst", "match_number"], kind="stable").copy()
     sc["continued"] = continued_full.reindex(sc.index)
-    # データ末尾の最終試合は「続けたか」が観測できない（右側打ち切り）ため継続率から除外。
+    # データ末尾の最終マッチは「続けたか」が観測できない（右側打ち切り）ため継続率から除外。
     cont_obs = sc[sc.index != last_match_idx] if last_match_idx is not None else sc
     after_win = cont_obs[cont_obs["won"] == True]
     after_loss = cont_obs[cont_obs["won"] == False]
     # セッションの終わり方。最終（打ち切り）セッションは「やめた」と確定できないため除外。
-    # 各セッションの最後の通常分析対象試合の勝敗で集計する。
+    # 各セッションの最後の通常分析対象マッチの勝敗で集計する。
     session_last = sc[sc["session_id"] != last_session_id].groupby("session_id").tail(1)
-    # セッション長（全試合数）別の勝率。長いセッションで勝率が落ちるかを確認する。
+    # セッション長（全マッチ数）別の勝率。長いセッションで勝率が落ちるかを確認する。
     len_edges = [1, 4, 8, np.inf]
-    len_labels = ["1〜3戦", "4〜7戦", "8戦以上"]
+    len_labels = ["1〜3マッチ", "4〜7マッチ", "8マッチ以上"]
     sc["session_len_bin"] = pd.cut(sc["session_size"], bins=len_edges, labels=len_labels, right=False)
     length_winrate = []
     for label, g in sc.groupby("session_len_bin", observed=False):
@@ -1171,7 +1171,7 @@ def analyze_csv(
     def _excess_breakdown(row_col: str, row_defs: list[tuple[Any, str]]) -> list[dict[str, Any]]:
         rows_out = []
         for key, label in row_defs:
-            # 期待勝率を算出できる試合に揃える（実績・期待・超過・nを同一母集団にする）。
+            # 期待勝率を算出できるマッチに揃える（実績・期待・超過・nを同一母集団にする）。
             g = completed[completed[row_col] == key]
             g = g[g["expected_win"].notna()]
             if not len(g):
@@ -1280,9 +1280,9 @@ def analyze_csv(
         "session_definition": {
             "gap_minutes": int(session_gap_minutes),
             "gap_basis": "previous_match_end_to_next_match_start",
-            "same_session_rule": f"前試合完了直後から次試合開始までの間隔が{int(session_gap_minutes)}分以内なら同一セッションです。",
-            "match_end_estimate": "played_at_jstに、各ラウンドのmax(lifetime_ms, opponent_lifetime_ms)合計を足して試合完了時刻を推定しています。",
-            "fallback": "試合時間を推定できない境界では、前試合のplayed_at_jstを基準にします。",
+            "same_session_rule": f"前マッチ完了直後から次マッチ開始までの間隔が{int(session_gap_minutes)}分以内なら同一セッションです。",
+            "match_end_estimate": "played_at_jstに、各ラウンドのmax(lifetime_ms, opponent_lifetime_ms)合計を足してマッチ完了時刻を推定しています。",
+            "fallback": "マッチ時間を推定できない境界では、前マッチのplayed_at_jstを基準にします。",
         },
         "meta": {
             "player": player_name,

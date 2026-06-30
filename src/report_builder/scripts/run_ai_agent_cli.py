@@ -24,6 +24,23 @@ CONFIG_PATH = PROJECT_ROOT / "config" / "ai_agent_cli.json"
 AI_CACHE = PROJECT_ROOT / "cache" / "ai"
 
 AGENT_PROMPT = {"codex": "prompt_codex.md", "claude": "prompt_claude.md"}
+REGULAR_REPORT_SECTIONS = (
+    "overview",
+    "strengths",
+    "weaknesses",
+    "style",
+    "round_states",
+    "streak",
+    "session",
+)
+REPORT_TEXT_FIELDS = (
+    "_meta",
+    *REGULAR_REPORT_SECTIONS,
+    "replays",
+    "summary",
+    "method",
+    "evidence",
+)
 
 
 def load_config() -> dict:
@@ -146,10 +163,51 @@ def ai_model_display_name(agent: str, spec: dict) -> str | None:
     return raw_model
 
 
+def keep_fields(value: object, allowed: tuple[str, ...]) -> object:
+    if not isinstance(value, dict):
+        return value
+    return {key: value[key] for key in allowed if key in value}
+
+
+def normalize_report_text(data: dict) -> dict:
+    """Drop harmless extra keys before strict schema validation runs."""
+    normalized = keep_fields(data, REPORT_TEXT_FIELDS)
+    if not isinstance(normalized, dict):
+        return data
+
+    if "_meta" in normalized:
+        normalized["_meta"] = keep_fields(
+            normalized.get("_meta"),
+            ("ai_model", "player_name", "source_period", "generated_date"),
+        )
+    for section in REGULAR_REPORT_SECTIONS:
+        if section in normalized:
+            normalized[section] = keep_fields(
+                normalized.get(section), ("key", "bullets", "summary")
+            )
+
+    if "replays" in normalized:
+        replays = keep_fields(normalized.get("replays"), ("key", "rows", "summary"))
+        if isinstance(replays, dict) and isinstance(replays.get("rows"), list):
+            replays["rows"] = [
+                keep_fields(row, ("priority", "condition", "viewpoint"))
+                for row in replays["rows"]
+            ]
+        normalized["replays"] = replays
+    if "summary" in normalized:
+        normalized["summary"] = keep_fields(normalized.get("summary"), ("key", "body"))
+    if "method" in normalized:
+        normalized["method"] = keep_fields(normalized.get("method"), ("key", "bullets"))
+    if "evidence" in normalized:
+        normalized["evidence"] = keep_fields(normalized.get("evidence"), ("body",))
+    return normalized
+
+
 def fill_ai_model_meta(extracted: str, agent: str, spec: dict) -> tuple[str, str | None]:
     data = json.loads(extracted)
     if not isinstance(data, dict):
         return extracted, None
+    data = normalize_report_text(data)
 
     meta = data.get("_meta")
     if not isinstance(meta, dict):
@@ -262,6 +320,24 @@ def prompt_stdin(spec: dict, prompt_text: str) -> str | None:
     return None
 
 
+def effective_prompt_spec(spec: dict, prompt_text: str) -> dict:
+    """Avoid Windows CreateProcess limits when a long prompt is configured as argv."""
+    # Bundled agent settings currently use stdin. This stays as a guard for
+    # local or legacy configs that switch prompt delivery back to argv.
+    if os.name != "nt" or spec.get("prompt_via", "argument") != "argument":
+        return spec
+    if len(prompt_text) <= 8000:
+        return spec
+
+    effective = dict(spec)
+    effective["prompt_via"] = "stdin"
+    print(
+        "長いプロンプトのため、AIエージェントCLIへ標準入力で渡します。",
+        flush=True,
+    )
+    return effective
+
+
 def redact_command(cmd: list[str], spec: dict) -> list[str]:
     if spec.get("prompt_via", "argument") == "argument":
         return cmd[:-1] + ["<prompt>"] if cmd else cmd
@@ -338,7 +414,7 @@ def classify_failure(agent: str, spec: dict, stdout: str, stderr: str) -> str | 
             return (
                 f"{spec.get('display_name', agent)} の非対話実行（claude -p）で認証に失敗しました。"
                 " `claude auth status` が loggedIn=true でも、保存済みトークンが失効している場合があります。"
-                " `repair_claude_cli_auth.bat` を実行して、CLIログインを更新してください。"
+                " `src\\report_builder\\repair_claude_cli_auth.bat` を実行して、CLIログインを更新してください。"
                 " 手動で行う場合は、cmdで `claude auth logout`、`claude auth login --claudeai`、"
                 " `claude -p \"Say OK only\"` の順に実行します。"
                 " まだ失敗する場合は `claude setup-token` で長期トークンを作成してください。"
@@ -386,7 +462,15 @@ def read_auth_status(path: str, agent: str, timeout: int = 10) -> dict | None:
     }
 
 
-def do_run(agent: str, spec: dict, quality: str) -> int:
+def normalize_reasoning_level(value: str) -> str:
+    return {
+        "high_quality": "high",
+        "low_cost": "low",
+    }.get(value, value)
+
+
+def do_run(agent: str, spec: dict, reasoning_level: str) -> int:
+    reasoning_level = normalize_reasoning_level(reasoning_level)
     path = resolve_executable(spec)
     AI_CACHE.mkdir(parents=True, exist_ok=True)
     run_log = AI_CACHE / "ai_agent_run.json"
@@ -400,7 +484,7 @@ def do_run(agent: str, spec: dict, quality: str) -> int:
 
     log: dict[str, object] = {
         "agent": agent,
-        "quality": quality,
+        "reasoning_level": reasoning_level,
         "prompt_file": str(prompt_file),
         "found": path is not None,
         "model_display_name": ai_model_display_name(agent, spec),
@@ -415,7 +499,8 @@ def do_run(agent: str, spec: dict, quality: str) -> int:
         return 1
 
     prompt_text = prompt_file.read_text(encoding="utf-8")
-    cmd = build_command(path, spec, prompt_text)
+    run_spec = effective_prompt_spec(spec, prompt_text)
+    cmd = build_command(path, run_spec, prompt_text)
     timeout = spec.get("timeout_seconds", 600)
 
     raw_path = AI_CACHE / "report_text.raw.txt"
@@ -429,7 +514,7 @@ def do_run(agent: str, spec: dict, quality: str) -> int:
     try:
         stdout, stderr, exit_code, timed_out = run_cli_command(
             cmd,
-            prompt_stdin(spec, prompt_text),
+            prompt_stdin(run_spec, prompt_text),
             timeout,
         )
     except KeyboardInterrupt:
@@ -449,8 +534,8 @@ def do_run(agent: str, spec: dict, quality: str) -> int:
     auth_status = read_auth_status(path, agent)
     log.update(
         {
-            "command": redact_command(cmd, spec),
-            "prompt_via": spec.get("prompt_via", "argument"),
+            "command": redact_command(cmd, run_spec),
+            "prompt_via": run_spec.get("prompt_via", "argument"),
             "exit_code": exit_code,
             "timed_out": timed_out,
             "duration_seconds": duration,
@@ -501,9 +586,16 @@ def main() -> None:
     parser.add_argument("--agent", choices=["codex", "claude"], required=True)
     parser.add_argument("--check", action="store_true", help="実行可否と前提を確認する")
     parser.add_argument(
-        "--quality",
-        choices=["standard", "high_quality", "low_cost", "legacy_appendix"],
+        "--reasoning-level",
+        choices=["standard", "high", "low"],
         default="standard",
+    )
+    parser.add_argument(
+        "--quality",
+        dest="reasoning_level",
+        choices=["standard", "high", "low", "high_quality", "low_cost"],
+        default=argparse.SUPPRESS,
+        help=argparse.SUPPRESS,
     )
     args = parser.parse_args()
 
@@ -514,7 +606,7 @@ def main() -> None:
 
     if args.check:
         raise SystemExit(do_check(args.agent, spec))
-    raise SystemExit(do_run(args.agent, spec, args.quality))
+    raise SystemExit(do_run(args.agent, spec, args.reasoning_level))
 
 
 if __name__ == "__main__":

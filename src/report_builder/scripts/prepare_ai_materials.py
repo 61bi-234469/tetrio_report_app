@@ -71,11 +71,22 @@ def main() -> None:
     parser.add_argument("--session-gap", type=int, default=10)
     parser.add_argument("--window", type=int, default=300)
     parser.add_argument(
-        "--quality",
-        choices=["standard", "high_quality", "low_cost", "legacy_appendix"],
+        "--reasoning-level",
+        choices=["standard", "high", "low"],
         default="standard",
     )
+    parser.add_argument(
+        "--quality",
+        dest="reasoning_level",
+        choices=["standard", "high", "low", "high_quality", "low_cost"],
+        default=argparse.SUPPRESS,
+        help=argparse.SUPPRESS,
+    )
     args = parser.parse_args()
+    reasoning_level = {
+        "high_quality": "high",
+        "low_cost": "low",
+    }.get(args.reasoning_level, args.reasoning_level)
 
     cache_dir = PROJECT_ROOT / "cache"
     ai_dir = cache_dir / "ai"
@@ -123,16 +134,16 @@ def main() -> None:
     run([
         sys.executable,
         str(PROJECT_ROOT / "scripts" / "prepare_ai_summary.py"),
-        "--quality",
-        args.quality,
+        "--reasoning-level",
+        reasoning_level,
     ])
 
     print("4/4 プロンプト生成...")
     run([
         sys.executable,
         str(PROJECT_ROOT / "scripts" / "build_ai_prompt.py"),
-        "--quality",
-        args.quality,
+        "--reasoning-level",
+        reasoning_level,
     ])
 
     pipeline_paths = existing_paths(CACHE_DEPENDENCIES)
@@ -148,7 +159,7 @@ def main() -> None:
         "player": args.player,
         "session_gap_minutes": args.session_gap,
         "window": args.window,
-        "quality": args.quality,
+        "reasoning_level": reasoning_level,
         "matches": bundle.summary["meta"]["matches"],
         "rounds": bundle.summary["meta"]["rounds"],
     }

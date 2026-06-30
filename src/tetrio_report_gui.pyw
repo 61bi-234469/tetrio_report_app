@@ -14,6 +14,7 @@ import shutil
 import subprocess
 import threading
 import time
+import hashlib
 from datetime import datetime
 from pathlib import Path
 
@@ -36,28 +37,27 @@ TEMPLATE_OUTPUT_DIR = TEMPLATE_DIR / "output"
 RESULT_DIR = APP_ROOT / "reports"
 CONFIG_PATH = APP_ROOT / "gui_config.json"
 REQ_HASH_SENTINEL = TEMPLATE_DIR / "cache" / ".requirements.sha256"
+LATEST_RUN_MANIFEST = TEMPLATE_DIR / "cache" / "latest_run_manifest.json"
 PLACEHOLDER_USERNAME = "your_username"
 
 AI_METHOD_CHOICES = [
     ("AIチャット用素材を保存", "manual_chat"),
     ("AIエージェントCLIで自動作成", "agent_cli"),
 ]
-AI_QUALITY_CHOICES = [
+AI_REASONING_LEVEL_CHOICES = [
     ("標準", "standard"),
-    ("高品質", "high_quality"),
-    ("低コスト", "low_cost"),
-    ("従来JSON / ai_appendix_data", "legacy_appendix"),
+    ("高", "high"),
+    ("低", "low"),
 ]
 AI_AGENT_CHOICES = [
     ("Codex CLI", "codex"),
     ("Claude Code CLI", "claude"),
 ]
-AI_QUALITY_SUMMARY = {
-    "standard": "summary_standard.json",
-    "high_quality": "summary_rich.json",
-    "low_cost": "summary_compact.json",
-    "legacy_appendix": "ai_appendix_data.json",
+AI_REASONING_LEVEL_ALIASES = {
+    "high_quality": "high",
+    "low_cost": "low",
 }
+AI_INPUT_JSON = "ai_appendix_data.json"
 
 DEFAULT_CONFIG = {
     "username": PLACEHOLDER_USERNAME,
@@ -65,13 +65,11 @@ DEFAULT_CONFIG = {
     "fetch_all": False,
     "api_save_csv": False,
     "api_save_base_files": False,
-    "report_copy_source_data": True,
     "report_open_html": True,
-    "ai_copy_source_data": True,
     "ai_open_html": True,
     "ai_report_method": "manual_chat",
     "ai_agent": "codex",
-    "ai_quality": "standard",
+    "ai_reasoning_level": "standard",
 }
 
 
@@ -83,6 +81,7 @@ def _label_to_value(choices: list[tuple[str, str]], label: str, fallback: str) -
 
 
 def _value_to_label(choices: list[tuple[str, str]], value: str) -> str:
+    value = AI_REASONING_LEVEL_ALIASES.get(value, value)
     for lab, val in choices:
         if val == value:
             return lab
@@ -184,14 +183,13 @@ class ReportLauncherApp:
         row += 1
         report = ttk.LabelFrame(frm, text="① 戦績分析レポート作成", padding=8)
         report.grid(row=row, column=0, columnspan=2, sticky="ew", **pad)
-        self.report_copy_source_data_var = tk.BooleanVar(
-            value=bool(cfg["report_copy_source_data"])
-        )
         self.report_open_html_var = tk.BooleanVar(value=bool(cfg["report_open_html"]))
-        ttk.Checkbutton(
+        ttk.Label(
             report,
-            text="レポート保存先に使用データのコピーも保存する",
-            variable=self.report_copy_source_data_var,
+            text="使用データの参照とハッシュは cache/latest_run_manifest.json に記録します。",
+            foreground="#555555",
+            wraplength=680,
+            justify="left",
         ).pack(anchor="w")
         ttk.Checkbutton(
             report,
@@ -214,12 +212,13 @@ class ReportLauncherApp:
         ai.grid(row=row, column=0, columnspan=2, sticky="ew", **pad)
         ai.columnconfigure(1, weight=1)
 
-        self.ai_copy_source_data_var = tk.BooleanVar(value=bool(cfg["ai_copy_source_data"]))
         self.ai_open_html_var = tk.BooleanVar(value=bool(cfg["ai_open_html"]))
-        ttk.Checkbutton(
+        ttk.Label(
             ai,
-            text="レポート保存先に使用データのコピーも保存する",
-            variable=self.ai_copy_source_data_var,
+            text="AI素材は cache/ai に保存します。HTML生成時のみ reports に保存します。",
+            foreground="#555555",
+            wraplength=680,
+            justify="left",
         ).grid(row=0, column=0, columnspan=2, sticky="w", **pad)
         self.ai_open_html_check = ttk.Checkbutton(
             ai,
@@ -243,17 +242,17 @@ class ReportLauncherApp:
             "<<ComboboxSelected>>", lambda _e: self._toggle_ai_agent()
         )
 
-        ttk.Label(ai, text="品質").grid(row=3, column=0, sticky="w", **pad)
-        self.ai_quality_var = tk.StringVar(
-            value=_value_to_label(AI_QUALITY_CHOICES, cfg["ai_quality"])
+        ttk.Label(ai, text="推論レベル").grid(row=3, column=0, sticky="w", **pad)
+        self.ai_reasoning_level_var = tk.StringVar(
+            value=_value_to_label(AI_REASONING_LEVEL_CHOICES, cfg["ai_reasoning_level"])
         )
-        self.ai_quality_combo = ttk.Combobox(
+        self.ai_reasoning_level_combo = ttk.Combobox(
             ai,
-            textvariable=self.ai_quality_var,
+            textvariable=self.ai_reasoning_level_var,
             state="readonly",
-            values=[lab for lab, _ in AI_QUALITY_CHOICES],
+            values=[lab for lab, _ in AI_REASONING_LEVEL_CHOICES],
         )
-        self.ai_quality_combo.grid(row=3, column=1, sticky="ew", **pad)
+        self.ai_reasoning_level_combo.grid(row=3, column=1, sticky="ew", **pad)
 
         ttk.Label(ai, text="連携AIエージェントCLI").grid(
             row=4, column=0, sticky="w", **pad
@@ -318,6 +317,9 @@ class ReportLauncherApp:
 
     def _toggle_ai_agent(self) -> None:
         method = _label_to_value(AI_METHOD_CHOICES, self.ai_method_var.get(), "manual_chat")
+        self.ai_reasoning_level_combo.configure(
+            state="readonly" if method == "agent_cli" else "disabled"
+        )
         self.ai_agent_combo.configure(state="readonly" if method == "agent_cli" else "disabled")
         self.ai_open_html_check.configure(
             state="normal" if method == "agent_cli" else "disabled"
@@ -338,40 +340,38 @@ class ReportLauncherApp:
         cfg["api_save_base_files"] = bool(
             cfg.get("api_save_base_files", cfg.get("save_base_files", False))
         )
-        cfg["report_copy_source_data"] = bool(
-            cfg.get("report_copy_source_data", cfg.get("save_source_data_copy", True))
-        )
-        cfg["ai_copy_source_data"] = bool(
-            cfg.get("ai_copy_source_data", cfg.get("save_source_data_copy", True))
-        )
         cfg["report_open_html"] = bool(
             cfg.get("report_open_html", cfg.get("open_report", True))
         )
         cfg["ai_open_html"] = bool(
             cfg.get("ai_open_html", cfg.get("open_report", True))
         )
+        reasoning_level = cfg.get("ai_reasoning_level", cfg.get("ai_quality", "standard"))
+        reasoning_level = AI_REASONING_LEVEL_ALIASES.get(reasoning_level, reasoning_level)
+        if reasoning_level not in {value for _, value in AI_REASONING_LEVEL_CHOICES}:
+            reasoning_level = "standard"
+        cfg["ai_reasoning_level"] = reasoning_level
         return cfg
 
     def _save_config(self) -> None:
         ai_method = _label_to_value(AI_METHOD_CHOICES, self.ai_method_var.get(), "manual_chat")
         ai_agent = _label_to_value(AI_AGENT_CHOICES, self.ai_agent_var.get(), "codex")
-        ai_quality = _label_to_value(AI_QUALITY_CHOICES, self.ai_quality_var.get(), "standard")
+        ai_reasoning_level = _label_to_value(
+            AI_REASONING_LEVEL_CHOICES, self.ai_reasoning_level_var.get(), "standard"
+        )
         cfg = {
             "username": self.username_var.get().strip().lower(),
             "max_matches": self._safe_int(self.max_matches_var, 100),
             "fetch_all": self.fetch_all_var.get(),
             "api_save_csv": self.api_save_csv_var.get(),
             "api_save_base_files": self.api_save_base_files_var.get(),
-            "report_copy_source_data": self.report_copy_source_data_var.get(),
             "report_open_html": self.report_open_html_var.get(),
-            "ai_copy_source_data": self.ai_copy_source_data_var.get(),
             "ai_open_html": self.ai_open_html_var.get(),
             "ai_report_method": ai_method,
             "ai_agent": ai_agent,
-            "ai_quality": ai_quality,
+            "ai_reasoning_level": ai_reasoning_level,
             "save_csv": self.api_save_csv_var.get(),
             "save_base_files": self.api_save_base_files_var.get(),
-            "save_source_data_copy": self.report_copy_source_data_var.get(),
             "open_report": self.report_open_html_var.get(),
         }
         try:
@@ -399,14 +399,12 @@ class ReportLauncherApp:
             "max_matches": self._safe_int(self.max_matches_var, 100),
             "api_save_csv": self.api_save_csv_var.get(),
             "api_save_base_files": self.api_save_base_files_var.get(),
-            "report_copy_source_data": self.report_copy_source_data_var.get(),
             "report_open_html": self.report_open_html_var.get(),
-            "ai_copy_source_data": self.ai_copy_source_data_var.get(),
             "ai_open_html": self.ai_open_html_var.get() and ai_method == "agent_cli",
             "ai_report_method": ai_method,
             "ai_agent": _label_to_value(AI_AGENT_CHOICES, self.ai_agent_var.get(), "codex"),
-            "ai_quality": _label_to_value(
-                AI_QUALITY_CHOICES, self.ai_quality_var.get(), "standard"
+            "ai_reasoning_level": _label_to_value(
+                AI_REASONING_LEVEL_CHOICES, self.ai_reasoning_level_var.get(), "standard"
             ),
         }
 
@@ -550,8 +548,7 @@ class ReportLauncherApp:
                 if not self._run_ai_report_step(p, python_exe, context, reuse_report_cache=True):
                     return
 
-            if context["run_output_dir"] is not None:
-                self._write_run_manifest(context["run_output_dir"], p, context)
+            self._write_run_manifest(p, context)
             self._log_write("\n完了しました。\n")
         except Exception as exc:  # noqa: BLE001
             self._log_write(f"\n[例外] {exc}\n")
@@ -564,12 +561,10 @@ class ReportLauncherApp:
             "player_id": player_id,
             "rounds_pq": rounds_pq,
             "matches_pq": matches_pq,
-            "run_output_dir": None,
+            "created_at": datetime.now().astimezone(),
             "saved_report": None,
             "saved_ai_report": None,
             "saved_ai_materials": [],
-            "saved_sources": [],
-            "source_data_copied": set(),
             "report_ran": False,
             "ai_ran": False,
         }
@@ -589,7 +584,7 @@ class ReportLauncherApp:
             "--output-dir",
             str(EXPORT_OUTPUT_DIR),
             "--output-layout",
-            "grouped",
+            "typed",
         ]
         if not p["api_save_base_files"]:
             cmd.append("--no-base-outputs")
@@ -610,7 +605,6 @@ class ReportLauncherApp:
         if not self._ensure_report_inputs(context):
             return False
 
-        run_output_dir = self._ensure_run_output_dir(context)
         run_started = time.time()
         ps_inner = (
             "$OutputEncoding=[Console]::OutputEncoding="
@@ -636,17 +630,9 @@ class ReportLauncherApp:
 
         context["saved_report"] = self._copy_latest_report(
             p["username"],
-            run_output_dir,
+            context["created_at"],
             since=run_started,
         )
-        if p["report_copy_source_data"]:
-            context["saved_sources"].extend(
-                self._copy_source_data(
-                    run_output_dir,
-                    [context["rounds_pq"], context["matches_pq"]],
-                    context["source_data_copied"],
-                )
-            )
         context["report_ran"] = True
 
         if p["report_open_html"] and context["saved_report"] is not None:
@@ -665,7 +651,6 @@ class ReportLauncherApp:
         if not self._ensure_report_inputs(context):
             return False
 
-        run_output_dir = self._ensure_run_output_dir(context)
         if reuse_report_cache:
             if not self._prepare_ai_from_existing_cache(p, python_exe):
                 return False
@@ -683,19 +668,11 @@ class ReportLauncherApp:
             p["username"],
             p,
             since=run_started,
-            run_output_dir=run_output_dir,
+            created_at=context["created_at"],
         )
         context["saved_ai_report"] = saved_ai_report
         context["saved_ai_materials"].extend(saved_ai_materials)
 
-        if p["ai_copy_source_data"]:
-            context["saved_sources"].extend(
-                self._copy_source_data(
-                    run_output_dir,
-                    [context["rounds_pq"], context["matches_pq"]],
-                    context["source_data_copied"],
-                )
-            )
         context["ai_ran"] = True
 
         if agent_attempted and not agent_pipeline_ok:
@@ -707,9 +684,8 @@ class ReportLauncherApp:
             if saved_ai_report is not None:
                 self._open_file(saved_ai_report)
             else:
-                materials_dir = run_output_dir / "02_ai_report" / "manual_materials"
-                if materials_dir.exists():
-                    self._open_file(materials_dir)
+                if AI_CACHE_DIR.exists():
+                    self._open_file(AI_CACHE_DIR)
         return True
 
     def _run_ai_materials_step(self, p: dict, python_exe: str, context: dict) -> bool:
@@ -721,8 +697,8 @@ class ReportLauncherApp:
             str(context["matches_pq"]),
             "--player",
             p["username"],
-            "--quality",
-            p["ai_quality"],
+            "--reasoning-level",
+            p["ai_reasoning_level"],
         ]
         rc = self._stream(cmd, cwd=TEMPLATE_DIR)
         if rc != 0:
@@ -747,14 +723,14 @@ class ReportLauncherApp:
             [
                 python_exe,
                 str(TEMPLATE_DIR / "scripts" / "prepare_ai_summary.py"),
-                "--quality",
-                p["ai_quality"],
+                "--reasoning-level",
+                p["ai_reasoning_level"],
             ],
             [
                 python_exe,
                 str(TEMPLATE_DIR / "scripts" / "build_ai_prompt.py"),
-                "--quality",
-                p["ai_quality"],
+                "--reasoning-level",
+                p["ai_reasoning_level"],
             ],
         ]
         for cmd in steps:
@@ -771,8 +747,8 @@ class ReportLauncherApp:
                 str(TEMPLATE_DIR / "scripts" / "run_ai_agent_cli.py"),
                 "--agent",
                 p["ai_agent"],
-                "--quality",
-                p["ai_quality"],
+                "--reasoning-level",
+                p["ai_reasoning_level"],
             ],
             [python_exe, str(TEMPLATE_DIR / "scripts" / "validate_ai_text.py")],
             [python_exe, str(TEMPLATE_DIR / "scripts" / "render_ai_text_to_html.py")],
@@ -802,6 +778,19 @@ class ReportLauncherApp:
 
     @staticmethod
     def _report_input_paths(player_id: str) -> tuple[Path, Path]:
+        typed_rounds = (
+            EXPORT_OUTPUT_DIR
+            / "parquet"
+            / f"{player_id}_tetra_league_rounds_with_params.parquet"
+        )
+        typed_matches = (
+            EXPORT_OUTPUT_DIR
+            / "parquet"
+            / f"{player_id}_tetra_league_matches_with_params.parquet"
+        )
+        if typed_rounds.exists() and typed_matches.exists():
+            return typed_rounds, typed_matches
+
         grouped_rounds = (
             EXPORT_OUTPUT_DIR
             / player_id
@@ -814,7 +803,7 @@ class ReportLauncherApp:
             / "parquet"
             / f"{player_id}_tetra_league_matches_with_params.parquet"
         )
-        if grouped_rounds.exists():
+        if grouped_rounds.exists() and grouped_matches.exists():
             return grouped_rounds, grouped_matches
 
         return (
@@ -822,27 +811,10 @@ class ReportLauncherApp:
             EXPORT_OUTPUT_DIR / f"{player_id}_tetra_league_matches_with_params.parquet",
         )
 
-    def _ensure_run_output_dir(self, context: dict) -> Path:
-        if context["run_output_dir"] is None:
-            context["run_output_dir"] = self._create_run_output_dir(context["player_id"])
-        return context["run_output_dir"]
-
-    def _create_run_output_dir(self, player_id: str) -> Path:
-        timestamp = datetime.now().strftime("%Y_%m_%d_%H%M%S")
-        base = RESULT_DIR / player_id / timestamp
-        candidate = base
-        suffix = 2
-        while candidate.exists():
-            candidate = RESULT_DIR / player_id / f"{timestamp}_{suffix}"
-            suffix += 1
-        candidate.mkdir(parents=True, exist_ok=False)
-        self._log_write(f"今回の保存先: {candidate}\n")
-        return candidate
-
     def _copy_latest_report(
         self,
         player_id: str,
-        run_output_dir: Path,
+        created_at: datetime,
         *,
         since: float | None = None,
     ) -> Path | None:
@@ -870,15 +842,24 @@ class ReportLauncherApp:
             return None
 
         src = candidates[0]
-        report_dir = run_output_dir / "01_report"
-        report_dir.mkdir(parents=True, exist_ok=True)
-        dest = report_dir / src.name
+        dest = self._unique_report_path(player_id, "report", created_at)
         shutil.copy2(src, dest)
         self._log_write(f"①レポートを保存しました: {dest}\n")
-
-        RESULT_DIR.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, RESULT_DIR / src.name)
         return dest
+
+    @staticmethod
+    def _unique_report_path(player_id: str, kind: str, created_at: datetime) -> Path:
+        RESULT_DIR.mkdir(parents=True, exist_ok=True)
+        stamp = created_at.strftime("%Y_%m_%d_%H%M")
+        base = RESULT_DIR / f"{player_id}_{kind}_{stamp}.html"
+        if not base.exists():
+            return base
+        suffix = 2
+        while True:
+            candidate = RESULT_DIR / f"{player_id}_{kind}_{stamp}_{suffix}.html"
+            if not candidate.exists():
+                return candidate
+            suffix += 1
 
     @staticmethod
     def _latest_html_candidates(paths, *, key, reverse: bool, threshold: float | None) -> list[Path]:
@@ -891,34 +872,12 @@ class ReportLauncherApp:
             result.append(path)
         return sorted(result, key=key, reverse=reverse)
 
-    def _copy_source_data(
-        self,
-        run_output_dir: Path,
-        sources: list[Path],
-        copied_names: set[str],
-    ) -> list[Path]:
-        source_dir = run_output_dir / "03_source_data"
-        copied: list[Path] = []
-        for src in sources:
-            if not src.is_file() or src.name in copied_names:
-                continue
-            source_dir.mkdir(parents=True, exist_ok=True)
-            dest = source_dir / src.name
-            shutil.copy2(src, dest)
-            copied_names.add(src.name)
-            copied.append(dest)
-        if copied:
-            self._log_write("使用データを保存しました:\n")
-            for dest in copied:
-                self._log_write(f"  {dest}\n")
-        return copied
-
     def _copy_ai_outputs(
         self,
         player_id: str,
         p: dict,
         since: float,
-        run_output_dir: Path,
+        created_at: datetime,
     ) -> tuple[Path | None, list[Path]]:
         ai_report_src = self._expected_ai_report_path(player_id)
         ai_report_ready = (
@@ -930,26 +889,20 @@ class ReportLauncherApp:
 
         saved_materials: list[Path] = []
         if p["ai_report_method"] == "manual_chat" or not ai_report_ready:
-            summary_file = AI_QUALITY_SUMMARY.get(p["ai_quality"], "summary_standard.json")
             material_files = [
-                summary_file,
+                AI_INPUT_JSON,
                 "prompt_chat.md",
                 "prompt_codex.md",
                 "prompt_claude.md",
                 "report_text_schema.json",
             ]
-            materials_dir = run_output_dir / "02_ai_report" / "manual_materials"
             for name in material_files:
                 src = AI_CACHE_DIR / name
                 if not src.exists():
                     continue
-                materials_dir.mkdir(parents=True, exist_ok=True)
-                dest = materials_dir / name
-                shutil.copy2(src, dest)
-                saved_materials.append(dest)
-                shutil.copy2(src, RESULT_DIR / f"{player_id}_ai_{name}")
+                saved_materials.append(src)
             if saved_materials:
-                self._log_write("②AI素材を保存しました:\n")
+                self._log_write("②AI素材を cache に保存しました:\n")
                 for dest in saved_materials:
                     self._log_write(f"  {dest}\n")
 
@@ -962,56 +915,83 @@ class ReportLauncherApp:
             )
             return None, saved_materials
 
-        ai_report_dir = run_output_dir / "02_ai_report"
-        ai_report_dir.mkdir(parents=True, exist_ok=True)
-        dest = ai_report_dir / ai_report_src.name
+        dest = self._unique_report_path(player_id, "ai_report", created_at)
         shutil.copy2(ai_report_src, dest)
         self._log_write(f"②AI考察レポートを保存しました: {dest}\n")
-        shutil.copy2(ai_report_src, RESULT_DIR / ai_report_src.name)
         return dest, saved_materials
 
-    def _write_run_manifest(self, run_output_dir: Path, p: dict, context: dict) -> None:
-        def rel(path: Path | None) -> str | None:
-            if path is None:
-                return None
-            try:
-                return path.relative_to(run_output_dir).as_posix()
-            except ValueError:
-                return str(path)
-
+    def _write_run_manifest(self, p: dict, context: dict) -> None:
         saved_ai_materials = self._unique_paths(context["saved_ai_materials"])
-        saved_sources = self._unique_paths(context["saved_sources"])
+        source_data = self._source_data_manifest(
+            [context["rounds_pq"], context["matches_pq"]]
+        )
         manifest = {
             "schema_version": 1,
-            "created_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+            "created_at": context["created_at"].isoformat(timespec="seconds"),
             "player": p["username"],
-            "output_root": str(run_output_dir),
-            "report_html": rel(context["saved_report"]),
-            "ai_report_html": rel(context["saved_ai_report"]),
-            "ai_materials": [rel(path) for path in saved_ai_materials],
-            "source_data": [rel(path) for path in saved_sources],
+            "report_html": str(context["saved_report"]) if context["saved_report"] else None,
+            "ai_report_html": (
+                str(context["saved_ai_report"]) if context["saved_ai_report"] else None
+            ),
+            "source_data": source_data,
+            "ai_materials": [str(path) for path in saved_ai_materials],
+            "settings": {
+                "max_matches": p["max_matches"],
+                "fetch_all": bool(p["fetch_all"]),
+                "api_save_csv": bool(p["api_save_csv"]),
+                "api_save_base_files": bool(p["api_save_base_files"]),
+            },
             "report": {
                 "ran": bool(context["report_ran"]),
-                "copy_source_data": bool(p["report_copy_source_data"]),
                 "open_html": bool(p["report_open_html"]),
             },
             "ai": {
                 "ran": bool(context["ai_ran"]),
                 "method": p["ai_report_method"] if context["ai_ran"] else None,
-                "quality": p["ai_quality"] if context["ai_ran"] else None,
+                "reasoning_level": p["ai_reasoning_level"] if context["ai_ran"] else None,
                 "agent": (
                     p["ai_agent"]
                     if context["ai_ran"] and p["ai_report_method"] == "agent_cli"
                     else None
                 ),
-                "copy_source_data": bool(p["ai_copy_source_data"]),
                 "open_html": bool(p["ai_open_html"]),
                 "agent_report_ready": context["saved_ai_report"] is not None,
             },
         }
-        path = run_output_dir / "run_manifest.json"
-        path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
-        self._log_write(f"実行情報を保存しました: {path}\n")
+        LATEST_RUN_MANIFEST.parent.mkdir(parents=True, exist_ok=True)
+        LATEST_RUN_MANIFEST.write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        self._log_write(f"実行情報を保存しました: {LATEST_RUN_MANIFEST}\n")
+
+    @staticmethod
+    def _source_data_manifest(paths: list[Path]) -> list[dict[str, object]]:
+        entries: list[dict[str, object]] = []
+        seen: set[str] = set()
+        for path in paths:
+            if not path.is_file():
+                continue
+            key = str(path)
+            if key in seen:
+                continue
+            seen.add(key)
+            entries.append(
+                {
+                    "path": key,
+                    "sha256": ReportLauncherApp._sha256_file(path),
+                    "bytes": path.stat().st_size,
+                }
+            )
+        return entries
+
+    @staticmethod
+    def _sha256_file(path: Path) -> str:
+        digest = hashlib.sha256()
+        with path.open("rb") as file:
+            for chunk in iter(lambda: file.read(1024 * 1024), b""):
+                digest.update(chunk)
+        return digest.hexdigest()
 
     @staticmethod
     def _unique_paths(paths: list[Path]) -> list[Path]:
@@ -1045,39 +1025,18 @@ class ReportLauncherApp:
 
     # ---------------------------------------------------------- open paths
     def _open_api_folder(self) -> None:
-        user_dir = EXPORT_OUTPUT_DIR / self.username_var.get().strip().lower()
-        target = user_dir if user_dir.exists() else EXPORT_OUTPUT_DIR
-        target.mkdir(parents=True, exist_ok=True)
-        self._open_file(target)
+        EXPORT_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        self._open_file(EXPORT_OUTPUT_DIR)
 
     def _open_report_folder(self) -> None:
-        player_root = RESULT_DIR / self.username_var.get().strip().lower()
-        target = self._latest_child_dir(player_root, "01_report")
-        if target is None:
-            player_root.mkdir(parents=True, exist_ok=True)
-            target = player_root
-        self._open_file(target)
+        RESULT_DIR.mkdir(parents=True, exist_ok=True)
+        self._open_file(RESULT_DIR)
 
     def _open_ai_folder(self) -> None:
-        player_root = RESULT_DIR / self.username_var.get().strip().lower()
-        target = self._latest_child_dir(player_root, "02_ai_report")
-        if target is None:
-            player_root.mkdir(parents=True, exist_ok=True)
-            target = player_root
+        method = _label_to_value(AI_METHOD_CHOICES, self.ai_method_var.get(), "manual_chat")
+        target = AI_CACHE_DIR if method == "manual_chat" else RESULT_DIR
+        target.mkdir(parents=True, exist_ok=True)
         self._open_file(target)
-
-    @staticmethod
-    def _latest_child_dir(player_root: Path, child_name: str) -> Path | None:
-        if not player_root.exists():
-            return None
-        candidates = [
-            path / child_name
-            for path in player_root.iterdir()
-            if path.is_dir() and (path / child_name).is_dir()
-        ]
-        if not candidates:
-            return None
-        return max(candidates, key=lambda path: path.stat().st_mtime)
 
     def _open_file(self, path: Path) -> None:
         try:

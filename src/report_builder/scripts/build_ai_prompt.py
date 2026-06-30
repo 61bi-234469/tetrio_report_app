@@ -17,18 +17,18 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 BASE_PROMPT = PROJECT_ROOT / "prompts" / "prompt_recommendations.md"
 
-QUALITY_TO_SUMMARY = {
-    "standard": "summary_standard.json",
-    "high_quality": "summary_rich.json",
-    "low_cost": "summary_compact.json",
-    "legacy_appendix": "ai_appendix_data.json",
+AI_INPUT_JSON = "ai_appendix_data.json"
+REASONING_LEVELS = ("standard", "high", "low")
+
+REASONING_LEVEL_ALIASES = {
+    "high_quality": "high",
+    "low_cost": "low",
 }
 
-QUALITY_LABEL = {
+REASONING_LEVEL_LABEL = {
     "standard": "標準",
-    "high_quality": "高品質",
-    "low_cost": "低コスト",
-    "legacy_appendix": "従来JSON（ai_appendix_data）",
+    "high": "高",
+    "low": "低",
 }
 
 SECTION_IDS = [
@@ -47,58 +47,35 @@ SECTION_IDS = [
 
 DATA_MAP_LEGACY = """### データマップ（添付JSONの主な集計項目）
 
-従来形式の `ai_appendix_data.json` を使います。各章で必要な項目を選んで使います。固定の対応はありません。JSONにない項目は触れず短く保留します。
+`ai_appendix_data.json` を使います。各章で必要な項目を選んで使います。固定の対応はありません。JSONにない項目は触れず短く保留します。
 
 - 全体・推移: `meta`、`kpis`、`tr_change`、`recent_windows`、`recent_scope`、`growth`、`growth_window_n`、`drawdown`、`tr_gap`
-- 試合単位の指標: `metrics`、`metrics_recent`、`stability`、`effect_sizes`、`delta_vs_bins`、`dominance`、`model`、`pps_bins`
+- マッチ単位の指標: `metrics`、`metrics_recent`、`stability`、`effect_sizes`、`delta_vs_bins`、`dominance`、`model`、`pps_bins`
 - プレイスタイル: `styles`、`styles_recent`
 - ラウンド単位の局面: `score_states`（同点・リード・ビハインド・各MP）、`tiebreak`（経路と指標変化）、`duration_bins`・`duration_by_result`（決着時間別）
-- 試合単位の連続性: `streaks`（連勝後・連敗後・3連敗以降。すべて試合単位）、`streak_states`（段階別の勝率・期待超過・能力指標差）
-- セッション定義: `session_definition`（前試合完了直後から次試合開始まで10分以内なら同一セッション。試合完了時刻はラウンド時間から推定）
-- セッション内の試合位置: `session_positions`（1試合目〜11試合目以降。位置は試合単位）
-- セッション継続傾向: `session_dynamics`（勝ち後／負け後の継続率、セッションの終わり方、セッション長別の勝率。負け後の継続率が勝ち後より高ければ「負けるほど粘る」、逆なら「勝てているから続ける」傾向。継続率はデータ末尾の打ち切り試合を除外済み）
+- マッチ単位の連続性: `streaks`（連勝後・連敗後・3連敗以降。すべてマッチ単位）、`streak_states`（段階別の勝率・期待超過・能力指標差）
+- セッション定義: `session_definition`（前マッチ完了直後から次マッチ開始まで10分以内なら同一セッション。マッチ完了時刻はラウンド時間から推定）
+- セッション内のマッチ位置: `session_positions`（1マッチ目〜11マッチ目以降。位置はマッチ単位）
+- セッション継続傾向: `session_dynamics`（勝ち後／負け後の継続率、セッションの終わり方、セッション長別の勝率。負け後の継続率が勝ち後より高ければ「負けるほど粘る」、逆なら「勝てているから続ける」傾向。継続率はデータ末尾の打ち切りマッチを除外済み）
 - 時間帯: `excess_by_weekday`、`excess_by_hour`
 - 記録: `records`
 """
 
-DATA_MAP_SUMMARY = """### データマップ（添付JSONの主な集計項目）
-
-品質別サマリJSON（`summary_standard.json` / `summary_rich.json` / `summary_compact.json`）を使います。`overall` は全体の要点、`c1`〜`c8` は①戦績レポートの章に対応する evidence です。各章で必要な項目を選んで使います。固定の対応はありません。JSONにない項目は触れず短く保留します。
-
-- 全体・推移: `overall`、`c1.evidence.meta`、`c1.evidence.kpis`、`c1.evidence.tr_change`、`c2.evidence.recent_windows`、`c2.evidence.growth`、`c2.evidence.stability`、`c2.evidence.drawdown`
-- 試合単位の指標: `c3.evidence.metrics`、`c3.evidence.metrics_recent`、`c4.evidence.effect_sizes`、`c4.evidence.delta_vs_bins`、`c4.evidence.dominance`、`c3.evidence.model`、`c5.evidence.model`
-- プレイスタイル: `c3.evidence.styles`、`c3.evidence.styles_recent`
-- ラウンド単位の局面: `c6.evidence.score_states`（同点・リード・ビハインド・各MP）、`c6.evidence.tiebreak`、`c7.evidence.duration_bins`、`c7.evidence.duration_by_result`、`c7.evidence.pps_bins`
-- 試合単位の連続性: `c6.evidence.streaks`、`c8.evidence.streak_states`
-- セッション内の試合位置: `c8.evidence.session_positions`
-- セッション継続傾向: `c8.evidence.session_dynamics`
-- 曜日・時間帯: `c8.evidence.excess_by_weekday`、`c8.evidence.excess_by_hour`
-- 記録: `c1.evidence.records`
-- 高品質サマリでは、`needs_raw_check` が true の章だけ `suggested_raw_scope` の範囲で `ai_analysis_payload.json` を限定参照できます。標準・低コストでは添付JSONだけを根拠にします。
-"""
-
-
-def replace_data_map(prompt_body: str, quality: str) -> str:
-    data_map = DATA_MAP_LEGACY if quality == "legacy_appendix" else DATA_MAP_SUMMARY
+def replace_data_map(prompt_body: str) -> str:
     pattern = re.compile(
         r"### データマップ（添付JSONの主な集計項目）\n.*?\n\n### 1\. 出力する別紙の構成",
         re.S,
     )
-    return pattern.sub(data_map.rstrip() + "\n\n### 1. 出力する別紙の構成", prompt_body)
+    return pattern.sub(DATA_MAP_LEGACY.rstrip() + "\n\n### 1. 出力する別紙の構成", prompt_body)
 
 
-def base_prompt_body(quality: str) -> str:
+def base_prompt_body() -> str:
     text = BASE_PROMPT.read_text(encoding="utf-8")
     marker = "## ===プロンプト本文==="
     if marker in text:
         text = text.split(marker, 1)[1].lstrip()
-    text = replace_data_map(text, quality)
-    summary_file = QUALITY_TO_SUMMARY[quality]
-    quality_label = QUALITY_LABEL[quality]
-    header = (
-        f"品質モード: **{quality_label}** (`{quality}`)\n"
-        f"主入力: `cache/ai/{summary_file}`\n\n"
-    )
+    text = replace_data_map(text)
+    header = "主入力: `cache/ai/ai_appendix_data.json`\n\n"
     return header + text
 
 
@@ -217,7 +194,7 @@ def schema_example() -> str:
             "key": "TRは大きく伸び、直近は攻撃面の底上げが見えます。",
             "bullets": [
                 "対象期間のTRは開始値から現在値まで上昇しています。",
-                "直近100試合ではAPMとVSが全期間平均より高く出ています。",
+                "直近100マッチではAPMとVSが全期間平均より高く出ています。",
                 "最大ドローダウン後の戻り方は、直近窓の勝率と合わせて確認します。",
             ],
             "summary": "全体として、短期の揺れを含みつつも攻撃面の伸びが結果に結びついています。",
@@ -242,51 +219,52 @@ def schema_example() -> str:
             "bullets": ["主要な読みと根拠集計項目の対応を書きます。"],
         },
         "evidence": {
-            "body": "使った試合数、ラウンド数、対象期間、保留事項を書きます。"
+            "body": "使ったマッチ数、ラウンド数、対象期間、保留事項を書きます。"
         },
     }
     return json.dumps(example, ensure_ascii=False, indent=2)
 
 
-def build_agent_prompt(quality: str, out_dir: Path) -> str:
-    summary_file = QUALITY_TO_SUMMARY[quality]
-    summary_path = out_dir / summary_file
-    if not summary_path.is_file():
-        raise SystemExit(f"AI用JSONが見つかりません: {summary_path}")
+def normalize_reasoning_level(value: str) -> str:
+    return REASONING_LEVEL_ALIASES.get(value, value)
 
-    if quality == "low_cost":
-        lines = [
-            "あなたはTETR.IO戦績データの分析担当者です。",
-            "次のJSONだけを根拠に、②AI考察レポート本文JSONを作成してください。",
-            "HTML、Markdown、コードフェンス、前置き、後書きは出力せず、JSON本体だけを返してください。",
-            "対象プレイヤー以外の具体的な相手名は出さず、簡潔なdesu/masu体の日本語で書いてください。",
-            "",
-            "低コストCLIモードのため、各節は短くします。",
-            "- 通常節は key 1文、bullets 1〜2項目、summary 1文。",
-            "- replays は rows 1〜3件。",
-            "- summary.body は2〜3文。",
-            "- method.bullets は2〜4項目。",
-            "- evidence.body は試合数・期間・保留事項を1〜2文。",
-            "- JSONにない値は推測せず、省略または短く保留してください。",
-            "",
-            "必須キー:",
-            ", ".join(SECTION_IDS),
-            "",
-        ]
-    else:
-        lines = [strip_html_template(base_prompt_body(quality)), ""]
+
+def build_agent_prompt(reasoning_level: str, out_dir: Path) -> str:
+    reasoning_level = normalize_reasoning_level(reasoning_level)
+    input_path = out_dir / AI_INPUT_JSON
+    if not input_path.is_file():
+        raise SystemExit(f"AI用JSONが見つかりません: {input_path}")
+
+    lines = [strip_html_template(base_prompt_body()), ""]
+    if reasoning_level == "high":
+        lines.append(f"AIエージェント推論レベル: {REASONING_LEVEL_LABEL[reasoning_level]} (`{reasoning_level}`)")
+        lines.extend(
+            [
+                "推論レベル高のため、各節で根拠項目の対応を確認し、表現の重複を減らしてください。",
+                "重要な主張は数値・区分・サンプル数のいずれかに結びつけ、弱い根拠は断定を避けてください。",
+                "summary と evidence では全体像、対象期間、読みの限界を通常より丁寧に整理してください。",
+            ]
+        )
+    elif reasoning_level == "low":
+        lines.append(f"AIエージェント推論レベル: {REASONING_LEVEL_LABEL[reasoning_level]} (`{reasoning_level}`)")
+        lines.extend(
+            [
+                "推論レベル低のため、根拠JSONにある明確な傾向だけを使って簡潔に書いてください。",
+                "推測で補わず、弱い根拠は短く保留してください。",
+            ]
+        )
 
     lines.append("### 出力形式（AIエージェントCLI用）")
     lines.append("")
     lines.append("HTMLは出力しません。ローカル側が固定HTMLテンプレートへ流し込むため、次のJSON本体だけを出力してください。")
     lines.append("Markdown、説明文、コードフェンス、前置き、後書きは出力しません。")
-    lines.append("各フィールドの文章量・分析密度は、上記の従来プロンプトでHTML本文へ直接書く場合と同じレベルにします。")
+    lines.append("各フィールドの文章量・分析密度は、上記のチャット用プロンプトでHTML本文へ直接書く場合と同じレベルにします。")
     lines.append("")
     lines.append("- 通常節（overview / strengths / weaknesses / style / round_states / streak / session）: `key`、`bullets`（3〜5項目）、`summary`。")
     lines.append("- `replays`: `key`、`rows`（priority / condition / viewpoint）、`summary`。")
     lines.append("- `summary`: `key`、`body`（3〜5文）。")
     lines.append("- `method`: `key`、`bullets`（主要な読み、逆因果、選択バイアス、数値だけでは判別できない要素）。")
-    lines.append("- `evidence`: `body`（試合数、ラウンド数、対象期間、保留事項）。")
+    lines.append("- `evidence`: `body`（マッチ数、ラウンド数、対象期間、保留事項）。")
     lines.append("- `_meta.ai_model`: このJSONを生成しているあなた自身のAIモデル名（例: `Claude Opus 4.8`）。分からない場合は `-`。")
     lines.append("")
     lines.append("JSON例:")
@@ -300,7 +278,7 @@ def build_agent_prompt(quality: str, out_dir: Path) -> str:
     lines.append("次のJSONだけを根拠にしてください。ローカルファイル読み取りや外部参照は不要です。")
     lines.append("")
     lines.append("```json")
-    lines.append(summary_path.read_text(encoding="utf-8").strip())
+    lines.append(input_path.read_text(encoding="utf-8").strip())
     lines.append("```")
     return "\n".join(lines) + "\n"
 
@@ -313,9 +291,16 @@ def main() -> None:
         default=PROJECT_ROOT / "cache" / "ai",
     )
     parser.add_argument(
-        "--quality",
-        choices=sorted(QUALITY_TO_SUMMARY),
+        "--reasoning-level",
+        choices=sorted(REASONING_LEVELS),
         default="standard",
+    )
+    parser.add_argument(
+        "--quality",
+        dest="reasoning_level",
+        choices=sorted([*REASONING_LEVELS, *REASONING_LEVEL_ALIASES]),
+        default=argparse.SUPPRESS,
+        help=argparse.SUPPRESS,
     )
     args = parser.parse_args()
 
@@ -331,9 +316,9 @@ def main() -> None:
     print(f"Created: {schema_path}")
 
     prompts = {
-        "prompt_chat.md": base_prompt_body(args.quality),
-        "prompt_codex.md": build_agent_prompt(args.quality, out_dir),
-        "prompt_claude.md": build_agent_prompt(args.quality, out_dir),
+        "prompt_chat.md": base_prompt_body(),
+        "prompt_codex.md": build_agent_prompt(args.reasoning_level, out_dir),
+        "prompt_claude.md": build_agent_prompt(args.reasoning_level, out_dir),
     }
     for filename, text in prompts.items():
         path = out_dir / filename

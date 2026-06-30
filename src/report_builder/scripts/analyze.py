@@ -18,7 +18,7 @@ def main() -> None:
     bundle = analyze_csv(args.csv, args.player, args.session_gap, args.window)
     write_analysis_outputs(bundle, args.cache_dir)
     print(f"分析完了: {args.csv}")
-    print(f"試合: {bundle.summary['meta']['matches']:,} / ラウンド: {bundle.summary['meta']['rounds']:,}")
+    print(f"マッチ: {bundle.summary['meta']['matches']:,} / ラウンド: {bundle.summary['meta']['rounds']:,}")
     print(f"AI用ペイロード: {args.cache_dir / 'ai_analysis_payload.json'}")
 
 if __name__ == "__main__":

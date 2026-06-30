@@ -1,5 +1,13 @@
 # AGENTS.md
 
+# genshijinのルール
+削除対象:
+- 敬語・丁寧語（です/ます/ございます → 体言止め・用言止め）
+- クッション言葉（えーと/まあ/ちなみに/一応/基本的に）
+- ぼかし（〜かもしれません/〜と思われます/おそらく）
+- 冗長助詞（〜することができる→〜できる）
+- 冗長接続（〜ということになりますので→だから）
+- 自明な助詞（が/の/を/に/で/は/と/も）— 意味通じるなら省略
 
 ## Project Notes
 - This is a Windows-oriented TETR.IO report generator. The root-level GUI `.bat` launcher (`レポート作成GUI.bat`) starts `src/tetrio_report_gui.pyw`.
@@ -22,7 +30,7 @@
   `.\src\report_builder\make_report.ps1 -DataFile "data\<user>_tetra_league_rounds_with_params.parquet" -MatchesFile "data\<user>_tetra_league_matches_with_params.parquet" -Player "<label>"`
 - Fetch API data directly with:
   `& "src\report_builder\.venv\Scripts\python.exe" "src\api_export\tetrio_league_export.py" --source api --username <user> --max-matches 100 --outputs all --output-dir "data"`
-- `make_report.ps1` switches: `-Force` (ignore cache and rerun every stage), `-Open` (open the HTML in a browser when done), `-PrepareAI` (emit the legacy lightweight AI JSON plus the ② AI-report materials — quality-tiered chapter summaries, prompts, and `report_text_schema.json` under `cache/ai/`), `-GenerateAIReport` (auto-build the ② AI report via an agent CLI; pairs with `-AIAgent codex|claude`), `-AIQuality standard|high_quality|low_cost` (shared by `-PrepareAI` and `-GenerateAIReport`), `-Chapter 9,12` (limit the legacy `-PrepareAI` JSON to specific chapters, range 1-12), `-ExternalImages` (emit an extra `preview_yyyy_mm_dd.html` that references images externally). `-GenerateAIReport` failures (missing CLI, auth, validation) keep the ① report intact and leave `cache/ai/` materials for the manual chat fallback. Use `-Open` only when the user wants the report opened.
+- `make_report.ps1` switches: `-Force` (ignore cache and rerun every stage), `-Open` (open the HTML in a browser when done), `-PrepareAI` (emit the single AI input JSON plus the ② AI-report prompts and `report_text_schema.json` under `cache/ai/`), `-GenerateAIReport` (auto-build the ② AI report via an agent CLI; pairs with `-AIAgent codex|claude`), `-AIReasoningLevel standard|high|low` (AI agent reasoning level; input JSON stays `ai_appendix_data.json`; `-AIQuality` remains as a compatibility alias), `-Chapter 9,12` (limit the legacy `-PrepareAI` JSON to specific chapters, range 1-12), `-ExternalImages` (emit an extra `preview_yyyy_mm_dd.html` that references images externally). `-GenerateAIReport` failures (missing CLI, auth, validation) keep the ① report intact and leave `cache/ai/` materials for the manual chat fallback. Use `-Open` only when the user wants the report opened.
 
 ## Implementation Guidance
 - Keep the GUI as a thin orchestrator around the API export and report builder scripts. Avoid duplicating analysis or rendering logic in `src/tetrio_report_gui.pyw`.

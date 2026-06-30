@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>TETR.IO 戦績レポート 別紙：総合まとめと定性分析</title>
+  <style>
+:root{--ink:#15161e;--muted:#6b7280;--grid:#e8e9ef;--primary:#6366f1;--bg:#fbfbfd;--card:#fff;--good:#0f9b6e;--issue:#c2410c;--neutral:#2563eb}
+*{box-sizing:border-box}
+body{font-family:"Noto Sans CJK JP","Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif;color:var(--ink);background:var(--bg);margin:0;line-height:1.8;font-size:15.5px}
+.wrap{max-width:940px;margin:0 auto;padding:32px 22px 72px}
+header{border-bottom:2px solid var(--ink);padding-bottom:18px;margin-bottom:24px;position:relative}
+h1{font-size:28px;margin:0 0 6px;letter-spacing:0;padding-right:170px}
+.gen-model{position:absolute;top:0;right:0;text-align:right;max-width:160px}
+.sub,.lead,.muted{color:var(--muted)}
+.sub{font-size:14px;margin:0}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-top:16px}
+.meta div,.card,.note{background:var(--card);border:1px solid var(--grid);border-radius:8px;padding:12px 14px}
+.lab{display:block;color:var(--muted);font-size:12px;font-weight:700}
+.val{display:block;font-size:15px;font-weight:800;margin-top:2px}
+.note{background:#fffdf5;border-color:#f3e6c0;color:#514226;font-size:13.5px;margin:18px 0 26px}
+section{margin-top:30px}
+h2{font-size:21px;margin:0 0 8px;padding-top:14px;border-top:1px solid var(--grid);display:flex;gap:10px;align-items:baseline}
+h2 .no{color:var(--primary);font-weight:800;font-size:15px;background:#eef0ff;border-radius:8px;padding:2px 10px;white-space:nowrap}
+p{margin:8px 0}
+.lead{font-size:14px;margin:0 0 12px}
+.card{border-left:4px solid var(--primary);margin-top:10px}
+.card.good{border-left-color:var(--good)}
+.card.issue{border-left-color:var(--issue)}
+.card.neutral{border-left-color:var(--neutral)}
+.key{font-weight:800;margin-bottom:6px}
+.tbl-scroll{overflow-x:auto;margin-top:8px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{border:1px solid var(--grid);padding:8px 10px;text-align:left;vertical-align:top}
+th{background:#f4f5fb;font-weight:700;white-space:nowrap}
+.pri{font-weight:800}
+.pri-high{color:var(--issue)}
+.pri-mid{color:var(--neutral)}
+footer{margin-top:48px;border-top:1px solid var(--grid);padding-top:18px;color:var(--muted);font-size:12.5px}
+@media (max-width:700px){.wrap{padding:24px 14px 64px}h1{font-size:23px;padding-right:0}h2{font-size:19px}.meta{grid-template-columns:1fr}.gen-model{position:static;text-align:left;max-width:none;margin-top:8px}}
+@media print{body{font-size:12px}.card{break-inside:avoid}}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="gen-model"><span class="lab">生成AIモデル</span><span class="val">GPT-5.5 Thinking</span></div>
+    <h1>TETR.IO 戦績レポート 別紙：総合まとめと定性分析</h1>
+    <p class="sub">集計JSONをもとに、戦績の傾向と確認ポイントを短く整理しています。</p>
+    <div class="meta">
+      <div><span class="lab">対象プレイヤー</span><span class="val">61bi_234469</span></div>
+      <div><span class="lab">対象期間</span><span class="val">2024-08-17〜2026-06-30</span></div>
+      <div><span class="lab">生成日</span><span class="val">2026-06-30</span></div>
+    </div>
+  </header>
+
+  <div class="note">この別紙は添付JSONの集計値だけを根拠に作成しています。元データの再集計や外部情報の参照は行っていません。</div>
+
+  <section id="overview">
+    <h2><span class="no">1</span>これまでの推移</h2>
+    <p class="lead">TR、直近成績、主要指標、ドローダウンの戻り方を確認します。</p>
+    <div class="card neutral">
+      <p class="key">全期間ではほぼ五分の勝率ですが、TRと主要指標は大きく伸び、直近100マッチも期待値を上回っています。</p>
+      <ul>
+        <li>初回TRは8,869.4、現在TRは20,788.5で、期間中のTR変化は+11,919.1です。</li>
+        <li>最高TRは21,154.0で、2026-06-29に記録しています。現在TRは最高値に近い水準です。</li>
+        <li>分析対象3,803マッチの通常勝率は50.3%です。直近100マッチは55.0%、直近500マッチは52.2%、直近1,000マッチは51.8%でした。</li>
+        <li>直近100マッチの勝率は期待値を3.8ポイント上回り、直近500マッチと直近1,000マッチも小幅に期待値を上回っています。</li>
+        <li>最大ドローダウンは-2,117.9で、底は2025-01-24です。その後は最高TR付近まで戻しています。</li>
+      </ul>
+      <p>推移としては、長期では大きくTRを積み上げ、直近では全期間平均より少し良い成績に寄っている状態です。</p>
+    </div>
+  </section>
+
+  <section id="strengths">
+    <h2><span class="no">2</span>強み（勝ち筋）</h2>
+    <p class="lead">勝敗差や相対指標から、結果に結びついている傾向を整理します。詳細は該当する粒度の章で扱います。</p>
+    <div class="card good">
+      <p class="key">勝ち筋は、APMとVSの優位を同時に作り、短いラウンドで押し切る展開です。</p>
+      <ul>
+        <li>APMとVSの両方で相手を上回ったマッチは2,345件あり、勝率は76.5%です。</li>
+        <li>VS差が大きい区分ほど勝率は明確に上がり、VS差が平均+20.6以上の区分では勝率85.9%以上です。</li>
+        <li>0〜30秒で決着したラウンドは12,590本あり、ラウンド勝率は65.2%です。この区分ではAPM、VS、Areaの相対差が大きくプラスです。</li>
+        <li>勝ちマッチの平均は負けマッチよりAPM、APP、VS、PPSが高く、特にAPMとAPPの差が大きく出ています。</li>
+        <li>直近100マッチではAPMが89.1、VSが174.6、APPが0.794で、相手平均との差も全期間より強めに出ています。</li>
+      </ul>
+      <p>数値上は、単に速いだけでなく、VSとAreaまで相手を上回る展開で勝率が大きく伸びます。早い時間で主導権を作れているラウンドが、最も結果に結びつく勝ち筋です。</p>
+    </div>
+  </section>
+
+  <section id="weaknesses">
+    <h2><span class="no">3</span>弱み・伸びしろ（負け筋）</h2>
+    <p class="lead">負けやすい条件、安定性、速度帯で弱く出ている傾向を確認します。詳細は該当する粒度の章で扱います。</p>
+    <div class="card issue">
+      <p class="key">負け筋は、VS優位を取れないままラウンドが30秒以上続き、セッション後半や連敗後に相対指標が落ちる展開です。</p>
+      <ul>
+        <li>APMで上回っていてもVSで下回ったマッチは276件あり、勝率は8.7%です。APMとVSの両方で下回ったマッチの勝率は5.8%でした。</li>
+        <li>VS差が平均-10.3以下の区分では勝率が3.8%以下まで落ち、VS差が小さく負の区分でも勝率は16.4%です。</li>
+        <li>30〜60秒のラウンド勝率は41.4%、60〜90秒は36.4%、90〜120秒は34.2%で、30秒を超えた区分では勝率が下がっています。</li>
+        <li>3連敗（3マッチ連続の敗北）以降のマッチは勝率49.5%で、APM、VS、Areaの相対差がいずれもマイナスです。</li>
+        <li>8マッチ以上続いたセッション内のマッチは勝率45.3%で、期待値を4.8ポイント下回っています。</li>
+      </ul>
+      <p>押し切れずに中盤以降へ伸びたラウンドでは、相手のVSやAreaに追いつかれる、または先に差を作られている可能性があります。長いセッションや連敗後の悪化は逆因果もあるため、勝率だけで原因までは断定しません。</p>
+    </div>
+  </section>
+
+  <section id="style">
+    <h2><span class="no">4</span>プレイスタイルの特徴（プレイスタイル像）</h2>
+    <p class="lead">全期間と直近100マッチの4プレイスタイル値を整理します。</p>
+    <div class="card neutral">
+      <p class="key">スタイル値では、OpenerとPlonkが高く、StrideとInf DSは低いプレイスタイル像です。</p>
+      <ul>
+        <li>全期間のOpenerは0.715で、相手平均0.544を上回っています。</li>
+        <li>全期間のPlonkは0.605で、相手平均0.442を上回っています。</li>
+        <li>全期間のStrideは0.067、Inf DSは0.032で、どちらも相手平均より低い値です。</li>
+        <li>直近100マッチではOpenerが0.741、Plonkが0.713で、Plonkの寄りが全期間より強く出ています。</li>
+        <li>直近100マッチのStrideは-0.107で、相手平均0.525との差が大きくなっています。</li>
+      </ul>
+      <p>スタイル値からは、主導権先行型と受け効率型の要素が強く、純粋な速度勝負型よりも、先に形を作って効率よく圧を返す像として読めます。ただし、これは集計上のスタイル値であり、個別の打ち方を直接観測したものではありません。</p>
+    </div>
+  </section>
+
+  <section id="round_states">
+    <h2><span class="no">5</span>ラウンド単位：局面別の揺れ</h2>
+    <p class="lead">ラウンド開始前のスコア状況（同点・リード・ビハインド・各マッチポイント）と、決着時間・タイブレークでの揺れを確認します。</p>
+    <div class="card neutral">
+      <p class="key">ラウンド単位では、リード時と短時間決着に強く、相手マッチポイントと30秒以降の決着で勝率が落ちます。</p>
+      <ul>
+        <li>ラウンド開始前がリード時の勝率は52.1%で、同点時の49.8%とビハインド時の48.7%を上回っています。</li>
+        <li>自分マッチポイントのラウンド勝率は50.6%、相手マッチポイントのラウンド勝率は47.7%です。</li>
+        <li>双方マッチポイントのラウンドは957本あり、勝率は49.4%で、期待値50.1%をわずかに下回っています。</li>
+        <li>勝ったラウンドの平均時間は38.7秒、負けたラウンドの平均時間は51.9秒で、負けラウンドのほうが長くなっています。</li>
+        <li>タイブレーク到達マッチ全体の勝率は49.4%です。追いついた側の勝率は43.6%、追いつかれた側の勝率は52.0%でした。</li>
+      </ul>
+      <p>先にリードして短く終える展開は強く、相手マッチポイントや長引いたラウンドは確認ポイントです。タイブレークは到達した時点で接戦だけが残るため、経路別の差は選択バイアス込みで読む必要があります。</p>
+    </div>
+  </section>
+
+  <section id="streak">
+    <h2><span class="no">6</span>マッチ単位：連勝・連敗による揺れ</h2>
+    <p class="lead">連勝後・連敗後・3連敗（3マッチ連続の敗北）以降でのマッチ勝率と能力指標の揺れを確認します。連勝・連敗はすべてマッチ単位です。</p>
+    <div class="card neutral">
+      <p class="key">連勝・連敗直後の勝率差は小さい一方、3連敗以降では能力指標差の落ち込みが見えます。</p>
+      <ul>
+        <li>最長連勝は11マッチ、最長連敗は10マッチです。</li>
+        <li>勝利後の次マッチ勝率は50.4%、敗北後の次マッチ勝率は50.2%で、直後の差はほぼありません。</li>
+        <li>2連敗後のマッチ勝率は52.9%で、期待値を2.9ポイント上回っています。</li>
+        <li>3連敗以降のマッチ勝率は49.5%で、期待値を1.3ポイント下回っています。</li>
+        <li>3連敗以降ではAPM差が-1.8、VS差が-3.6、Area差が-9.6で、主要な相対指標がそろって下がっています。</li>
+      </ul>
+      <p>単発の負け直後に大きく崩れるというより、3連敗以降で相対指標の弱さが出やすい構図です。連敗段階そのものよりも、3連敗以降のマッチ内容が振り返り候補です。</p>
+    </div>
+  </section>
+
+  <section id="session">
+    <h2><span class="no">7</span>セッション単位：マッチ位置と運用提案</h2>
+    <p class="lead">セッション内のマッチ位置と継続傾向（勝ち後／負け後の続けやすさ）、1回のセッションの目安マッチ数・中断ポイントの候補、曜日別・時間帯別の偏りを確認します。</p>
+    <div class="card neutral">
+      <p class="key">セッション単位では、2〜3マッチ目と短いセッションが良く、8マッチ以上の長いセッションで成績が落ちます。</p>
+      <ul>
+        <li>セッションは、前マッチ完了直後から次マッチ開始まで10分以内なら同一セッションとして集計されています。</li>
+        <li>セッション内1マッチ目の勝率は48.4%で、期待値を2.0ポイント下回ります。2マッチ目は53.1%、3マッチ目は51.5%です。</li>
+        <li>セッション内7マッチ目は48.1%、8マッチ目は48.6%で、どちらも期待値を下回っています。</li>
+        <li>1〜3マッチの短いセッション内のマッチ勝率は55.7%、4〜7マッチは50.5%、8マッチ以上は45.3%です。</li>
+        <li>勝利後の継続率は74.1%、敗北後の継続率は74.9%で、負け後のほうがわずかに続けやすいものの差は小さいです。</li>
+      </ul>
+      <p>集計上の目安としては、プラスを保ちやすい範囲は1〜7マッチで、8マッチ以上は中断候補として確認しやすい位置です。曜日別では月曜と木曜が期待値を上回り、水曜と日曜が下回りますが、時間帯別の差は4〜7時を小標本として除くと大きくありません。</p>
+    </div>
+  </section>
+
+  <section id="replays">
+    <h2><span class="no">8</span>次に見るべきリプレイ条件</h2>
+    <p class="lead">勝ち筋・負け筋が分かれやすい条件から、振り返ると確認しやすいリプレイの条件を整理します。プレイングの指示ではなく確認の観点です。</p>
+    <div class="card neutral">
+      <p class="key">優先して見る条件は、短時間決着との差が大きいラウンド、マッチポイント局面、連敗後とセッション後半のマッチです。</p>
+      <div class="tbl-scroll">
+        <table>
+          <thead>
+            <tr><th>優先度</th><th>見るリプレイ（条件）</th><th>見たい点（確認の観点）</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="pri pri-high">高</td><td>30〜120秒で敗れたラウンド</td><td>0〜30秒勝利時に出ていたAPM・VS・Areaの優位が、30秒以降でどこから失われているか。</td></tr>
+            <tr><td class="pri pri-high">高</td><td>相手マッチポイント、双方マッチポイントのラウンド</td><td>ラウンド開始前のリード・ビハインド差と、タイブレーク経路ごとの入り方の違い。</td></tr>
+            <tr><td class="pri pri-mid">中</td><td>3連敗（3マッチ連続の敗北）以降のマッチ</td><td>APM・VS・Areaの相対差が下がる場面が、試合序盤から出ているのか途中から出ているのか。</td></tr>
+            <tr><td class="pri pri-mid">中</td><td>セッション7マッチ目以降、または8マッチ以上のセッション内マッチ</td><td>セッション序盤の2〜3マッチ目と比べて、相対指標と決着時間がどう変わっているか。</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>ここでは、JSON内に区分別の勝率や指標差があり、差が読み取りやすい条件だけを挙げています。</p>
+    </div>
+  </section>
+
+  <section id="summary">
+    <h2><span class="no">9</span>総括</h2>
+    <div class="card">
+      <p class="key">全体像は、長期で大きく伸びたうえで、直近もやや期待値を上回る先行主導権型です。</p>
+      <p>勝ち筋は、APMとVSの両方で相手を上回り、0〜30秒の短いラウンドで押し切る展開です。スタイル値ではOpenerとPlonkが高く、先に形を作りながら効率よく圧を返す像として読めます。負け筋は、VS優位を取れないまま30秒以上続くラウンド、相手マッチポイント、3連敗以降、8マッチ以上の長いセッションに集まっています。全期間の通常勝率は50.3%で大きくは偏りませんが、直近100マッチは55.0%で、現在TRも最高TRに近い水準です。</p>
+    </div>
+  </section>
+
+  <section id="method">
+    <h2><span class="no">10</span>分析過程と検証・逆因果</h2>
+    <p class="lead">読者が考察を後から検証・反証できるよう、読みの組み立て方と逆因果・選択バイアスの可能性を明記します。</p>
+    <div class="card neutral">
+      <p class="key">読みの中心は、勝敗と強く結びつく相対指標、局面別勝率、セッション内位置の3系統です。</p>
+      <ul>
+        <li>勝ち筋は、APM・APP・VSの勝敗別平均差、VS差別の勝率、APM・VS優劣の4分類、決着時間別のラウンド勝率を対応させて読みました。</li>
+        <li>負け筋は、VS不利区分、30秒以上のラウンド、相手マッチポイント、3連敗以降、8マッチ以上のセッション内マッチで勝率や相対指標が落ちる点から読みました。</li>
+        <li>長いラウンドで勝率が低い理由は、「長引くと不利になる」可能性と、「苦しいラウンドほど長引いた」可能性の両方があります。</li>
+        <li>長いセッションで勝率が低い理由も、「長く続けて崩れた」可能性と、「負けているために粘って長くなった」可能性の両方があります。</li>
+        <li>タイブレーク到達マッチ、セッション後半のマッチ、曜日・時間帯別の区分は、そこに到達した試合やその時間にプレイした試合だけが残るため、選択バイアスを含みます。</li>
+        <li>数値だけでは、個別の開幕、盤面、入力ミス、回線、相手ごとの相性、試合中の具体的な判断までは判別できません。</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="evidence">
+    <h2><span class="no">11</span>根拠と保留事項</h2>
+    <div class="card">
+      <p>対象期間は2024-08-17〜2026-06-30です。集計JSON上の総マッチ数は3,851、分析対象マッチ数は3,803、ラウンド数は29,890、セッション数は977です。直近100マッチの範囲には1,081ラウンドが含まれます。4〜7時の時間帯は6マッチのみのため、時間帯傾向の本文では判断を保留しました。直近内訳のないセッション位置別、曜日別、時間帯別は全期間の傾向として扱い、直近推移としては書いていません。</p>
+    </div>
+  </section>
+
+  <footer>この別紙は別紙用の集計データから作成した定性分析です。①戦績レポート（本体）の数値定義と集計結果を前提にしています。</footer>
+</div>
+</body>
+</html>

@@ -17,18 +17,21 @@ os.environ.setdefault("MPLCONFIGDIR", str(PROJECT_ROOT / "cache" / "matplotlib")
 from charts import generate_all_charts
 from input_normalizer import normalize_to_round_csv
 from render_report import render_all
-from report_analysis import analyze_csv, file_sha256, write_analysis_outputs
+from report_analysis import analyze_csv, apply_opponent_display, file_sha256, write_analysis_outputs
 
 EXPECTED_CHARTS = [
     "01_tr_history.png", "02_metric_distributions.png", "03_capability_radar.png",
     "04_playstyle_radar.png", "20_playstyle_trend.png", "05_monthly_normalized_trends.png",
     "06_stability_windows.png", "08_relative_effect_sizes.png", "09_delta_vs_winrate.png",
-    "10_apm_vs_dominance_heatmap.png",
+    "09_delta_pps_winrate.png", "09_delta_apm_winrate.png", "09_delta_area_winrate.png",
+    "10_apm_vs_dominance_scatter.png", "11_pps_vs_dominance_scatter.png",
     "12_tr_gap_expected_vs_actual.png", "13_tr_drawdown.png",
     "14_streak_distribution.png", "15_tiebreak_analysis.png",
-    "16_session_position.png", "17_round_duration.png",
+    "28_comeback.png",
+    "16_session_position.png", "29_session_decay.png", "17_round_duration.png",
     "18_score_state_next_round.png", "19_duration_metric_deltas.png",
     "20_excess_weekday.png", "21_excess_hour.png",
+    "25_style_matchup_plane.png", "27_rivals.png",
 ]
 
 CACHE_DEPENDENCIES = [
@@ -70,6 +73,7 @@ def main() -> None:
     p.add_argument("--window", type=int, default=300)
     p.add_argument("--force", action="store_true", help="同じCSVでも再分析する")
     p.add_argument("--external-images", action="store_true", help="確認用HTMLは画像を外部参照にする")
+    p.add_argument("--show-opponent-names", action="store_true", help="ライバル章で対戦相手の実名を表示する（既定は匿名ラベル）")
     args = p.parse_args()
 
     cache_dir = PROJECT_ROOT / "cache"
@@ -110,6 +114,7 @@ def main() -> None:
         and state.get("pipeline_sha256") == pipeline_hash
         and state.get("session_gap_minutes") == args.session_gap
         and state.get("window") == args.window
+        and state.get("show_opponent_names") == args.show_opponent_names
         and chart_ok
         and output_ok
     ):
@@ -126,12 +131,13 @@ def main() -> None:
         "normalized_csv": str(csv_path),
         "sha256": source_hash,
     })
+    apply_opponent_display(bundle.summary, show_names=args.show_opponent_names)
     write_analysis_outputs(bundle, cache_dir)
 
     print(f"2/5 {len(EXPECTED_CHARTS)}グラフ生成...")
     generate_all_charts(bundle, charts_dir)
 
-    print("3/5 8章・付録・KPI生成...")
+    print("3/5 10章・付録・KPI生成...")
     render_all(bundle, PROJECT_ROOT, args.player)
 
     print("4/5 自己完結HTML生成...")
@@ -157,6 +163,7 @@ def main() -> None:
         "pipeline_files": [str(path) for path in pipeline_paths],
         "session_gap_minutes": args.session_gap,
         "window": args.window,
+        "show_opponent_names": args.show_opponent_names,
         "updated_at": datetime.now().isoformat(timespec="seconds"),
         "matches": bundle.summary["meta"]["matches"],
         "rounds": bundle.summary["meta"]["rounds"],
@@ -171,7 +178,7 @@ def main() -> None:
         "ai_payload_bytes": (cache_dir / "ai_analysis_payload.json").stat().st_size,
     }
     state_path.write_text(json.dumps(validation, ensure_ascii=False, indent=2), encoding="utf-8")
-    if missing or validation["chapter_count"] != 8 or validation["appendix_count"] != 3 or validation["unresolved_jinja"]:
+    if missing or validation["chapter_count"] != 10 or validation["appendix_count"] != 2 or validation["unresolved_jinja"]:
         raise SystemExit(f"Validation failed: {json.dumps(validation, ensure_ascii=False)}")
     if not args.external_images and validation["embedded_images"] != len(EXPECTED_CHARTS):
         raise SystemExit(f"Expected {len(EXPECTED_CHARTS)} embedded images, got {validation['embedded_images']}")

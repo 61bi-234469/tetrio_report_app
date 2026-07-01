@@ -130,6 +130,19 @@ def _jsonable(value: Any) -> Any:
     return value
 
 
+# TETR.IOリーグランクの昇順。昇降方向の判定に使う。
+RANK_ORDER = ["d", "d+", "c-", "c", "c+", "b-", "b", "b+", "a-", "a", "a+",
+              "s-", "s", "s+", "ss", "u", "x", "x+"]
+_RANK_INDEX = {name: i for i, name in enumerate(RANK_ORDER)}
+
+
+def _rank_order(rank: Any) -> int:
+    """ランク文字列を昇順インデックスへ。未知・欠損は-1。"""
+    if rank is None:
+        return -1
+    return _RANK_INDEX.get(str(rank).strip().lower(), -1)
+
+
 def _norm_id(value: Any) -> str:
     if value is None or pd.isna(value):
         return ""
@@ -305,6 +318,11 @@ def enrich_rounds(df: pd.DataFrame) -> pd.DataFrame:
 
     # 秒単位のラウンド時間。
     df["lifetime_s"] = pd.to_numeric(df.get("lifetime_ms"), errors="coerce") / 1000
+
+    # B2B（連鎖）。文字列で入る場合があるため数値化する。
+    for col in ("btb", "opponent_btb"):
+        if col in df:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
     return df
 
 
@@ -318,16 +336,18 @@ def build_match_df(rounds: pd.DataFrame, session_gap_minutes: int = DEFAULT_SESS
         "glicko_before", "glicko_after", "glicko_delta", "rd_before", "rd_after", "rd_delta",
         "opponent_glicko_before", "opponent_glicko_after", "opponent_glicko_delta",
         "opponent_rd_before", "opponent_rd_after", "opponent_rd_delta",
+        "league_rank_before", "league_rank_after",
+        "placement_before", "placement_after", "placement_delta",
     ]
     metadata = [c for c in metadata if c in rounds.columns]
 
     metric_columns = [
         "apm", "pps", "vs", "APP", "DS/Second", "DS/Piece", "APP+DS/Piece",
-        "VS/APM", "Garbage Effi.", "Cheese Index", "Area", EST_TR_COLUMN,
+        "VS/APM", "Garbage Effi.", "Cheese Index", "Area", EST_TR_COLUMN, "btb",
         "opponent_apm", "opponent_pps", "opponent_vs", "opponent_APP",
         "opponent_DS/Second", "opponent_DS/Piece", "opponent_APP+DS/Piece",
         "opponent_VS/APM", "opponent_Garbage Effi.", "opponent_Cheese Index",
-        "opponent_Area", f"opponent_{EST_TR_COLUMN}",
+        "opponent_Area", f"opponent_{EST_TR_COLUMN}", "opponent_btb",
     ]
     for style in STYLE_ORDER:
         if style in rounds:
@@ -410,6 +430,16 @@ def build_match_df(rounds: pd.DataFrame, session_gap_minutes: int = DEFAULT_SESS
     for label, (own, opp) in pairs.items():
         if own in matches and opp in matches:
             matches[f"delta_{label}"] = matches[own] - matches[opp]
+
+    # スタイル2軸（複合型対応の相性分析用）。argmaxで1スタイルに潰さず、平面位置で扱う。
+    # マッチ平均は線形なので mean(Opener)-mean(Inf DS) = mean(Opener - Inf DS)。
+    if all(s in matches for s in STYLE_ORDER):
+        matches["Opener - Inf DS"] = matches["Opener"] - matches["Inf DS"]
+        matches["Stride - Plonk"] = matches["Stride"] - matches["Plonk"]
+    opp_axis_styles = [f"opponent_{s}" for s in STYLE_ORDER]
+    if all(s in matches for s in opp_axis_styles):
+        matches["opponent_Opener - Inf DS"] = matches["opponent_Opener"] - matches["opponent_Inf DS"]
+        matches["opponent_Stride - Plonk"] = matches["opponent_Stride"] - matches["opponent_Plonk"]
 
     if all(s in matches for s in STYLE_ORDER):
         style_frame = matches[STYLE_ORDER]
@@ -646,6 +676,13 @@ def analyze_tiebreaks(rounds: pd.DataFrame, matches: pd.DataFrame) -> tuple[pd.D
     wins = int(tb["won"].sum())
     lo, hi = _wilson_interval(wins, len(tb))
     tb_ve = tb[tb["expected_win"].notna()]
+
+    def _route_group(mask: pd.Series) -> dict[str, Any]:
+        g = tb[mask]
+        n = int(len(g))
+        w = int(g["won"].sum())
+        return {"n": n, "wins": w, "win_rate": float(w / n) if n else math.nan}
+
     summary = {
         "n": int(len(tb)),
         "wins": wins,
@@ -654,6 +691,9 @@ def analyze_tiebreaks(rounds: pd.DataFrame, matches: pd.DataFrame) -> tuple[pd.D
         "excess": float(tb_ve["won"].mean() - tb_ve["expected_win"].mean()) if len(tb_ve) else math.nan,
         "wilson_low": lo,
         "wilson_high": hi,
+        # 追い付いた側（最終前ラウンドを取ってタイブレークへ持ち込んだ）/ 追い付かれた側。
+        "caught_up": _route_group(tb["penultimate_won"]),
+        "caught_from": _route_group(~tb["penultimate_won"]),
         "routes": route_summary,
         "final_changes": {
             label: float(tb[f"change_{label}"].mean())
@@ -797,11 +837,23 @@ def build_records(rounds: pd.DataFrame, matches: pd.DataFrame, summary_context: 
     if len(valid_tr):
         row = valid_tr.loc[valid_tr["tr_after"].idxmax()]
         add("最高TR", row["tr_after"], "TR", row, "マッチ後")
+    if "league_rank_after" in matches and matches["league_rank_after"].notna().any():
+        ranked = matches.dropna(subset=["league_rank_after"]).copy()
+        ranked["__rank_ord"] = ranked["league_rank_after"].map(_rank_order)
+        ranked = ranked[ranked["__rank_ord"] >= 0]
+        if len(ranked):
+            row = ranked.loc[ranked["__rank_ord"].idxmax()]
+            add("最高ランク", str(row["league_rank_after"]).upper(), "ランク", row, "マッチ後", "初到達日を表示")
     for col, name in [("tr_delta", "最大1マッチTR増加"), ("tr_delta", "最大1マッチTR減少")]:
         valid = matches.dropna(subset=[col])
         if len(valid):
             idx = valid[col].idxmax() if "増加" in name else valid[col].idxmin()
             add(name, valid.loc[idx, col], "TR", valid.loc[idx], "単マッチ", "初期配置期は能力PRとして解釈しない")
+    if "won" in matches and "opponent_tr_before" in matches:
+        won_valid = matches[matches["won"].astype(bool)].dropna(subset=["opponent_tr_before"])
+        if len(won_valid):
+            row = won_valid.loc[won_valid["opponent_tr_before"].idxmax()]
+            add("勝利した相手最高TR", row["opponent_tr_before"], "TR", row, "単マッチ", "勝利マッチの対戦前相手TRの最大")
 
     match_metrics = {
         "apm": ("単マッチ最高APM", "APM"), "pps": ("単マッチ最高PPS", "PPS"),
@@ -843,7 +895,12 @@ def build_records(rounds: pd.DataFrame, matches: pd.DataFrame, summary_context: 
 
     add("最長連勝", summary_context["streaks"]["max_win"], "マッチ", None, "連勝・連敗")
     add("最長連敗", summary_context["streaks"]["max_loss"], "マッチ", None, "連勝・連敗")
-    add("タイブレーク勝率", summary_context["tiebreak"].get("win_rate"), "%", None, "タイブレーク", f"n={summary_context['tiebreak'].get('n', 0)}")
+    tb_ctx = summary_context["tiebreak"]
+    add("タイブレーク勝率", tb_ctx.get("win_rate"), "%", None, "タイブレーク", f"n={tb_ctx.get('n', 0)}")
+    caught_up = tb_ctx.get("caught_up", {})
+    caught_from = tb_ctx.get("caught_from", {})
+    add("タイブレーク勝率（追い付いたとき）", caught_up.get("win_rate"), "%", None, "タイブレーク", f"n={caught_up.get('n', 0)}")
+    add("タイブレーク勝率（追い付かれたとき）", caught_from.get("win_rate"), "%", None, "タイブレーク", f"n={caught_from.get('n', 0)}")
     return records
 
 
@@ -943,7 +1000,13 @@ def analyze_csv(
         }
 
     effect_sizes = []
-    for label, col in {"APM": "apm", "PPS": "pps", "VS": "vs", "APP": "APP", "DS/S": "DS/Second", "DS/P": "DS/Piece", "GbE": "Garbage Effi.", "Area": "Area", "VS/APM": "VS/APM"}.items():
+    effect_metric_cols = {
+        "APM": "apm", "PPS": "pps", "VS": "vs", "APP": "APP",
+        "DS/S": "DS/Second", "DS/P": "DS/Piece", "GbE": "Garbage Effi.",
+        "Area": "Area", "VS/APM": "VS/APM",
+    }
+    effect_metric_cols.update({style: style for style in STYLE_ORDER if style in completed})
+    for label, col in effect_metric_cols.items():
         effect_sizes.append({
             "metric": label,
             "d": _cohens_d(completed.loc[completed["won"], col], completed.loc[~completed["won"], col]),
@@ -952,31 +1015,61 @@ def analyze_csv(
         })
     effect_sizes.sort(key=lambda x: abs(x["d"]) if np.isfinite(x["d"]) else -1, reverse=True)
 
-    # APM/VS優劣4分類。
-    dominance = []
-    for apm_adv in [False, True]:
-        for vs_adv in [False, True]:
-            g = completed[(completed["delta_APM"] >= 0) == apm_adv]
-            g = g[(g["delta_VS"] >= 0) == vs_adv]
-            dominance.append({
-                "apm_adv": apm_adv, "vs_adv": vs_adv, "n": int(len(g)),
-                "win_rate": float(g["won"].mean()) if len(g) else math.nan,
-            })
+    def _expected_group(g: pd.DataFrame) -> dict[str, Any]:
+        ge = g[g["expected_win"].notna()]
+        return {
+            "n": int(len(ge)),
+            "actual": float(ge["won"].mean()) if len(ge) else math.nan,
+            "expected": float(ge["expected_win"].mean()) if len(ge) else math.nan,
+            "excess": float(ge["won"].mean() - ge["expected_win"].mean()) if len(ge) else math.nan,
+            "all_n": int(len(g)),
+        }
 
-    # ΔVSの分位ビン。
-    delta_vs_bins = []
-    dvalid = completed.dropna(subset=["delta_VS"])
-    if len(dvalid) >= 20:
-        try:
-            dvalid = dvalid.copy()
-            dvalid["delta_vs_bin"] = pd.qcut(dvalid["delta_VS"], q=min(8, dvalid["delta_VS"].nunique()), duplicates="drop")
-            for interval, g in dvalid.groupby("delta_vs_bin", observed=True):
-                delta_vs_bins.append({
-                    "label": str(interval), "n": int(len(g)),
-                    "delta_mean": float(g["delta_VS"].mean()), "win_rate": float(g["won"].mean()),
+    def _dominance_table(metric_label: str, delta_col: str) -> list[dict[str, Any]]:
+        rows = []
+        for metric_adv in [False, True]:
+            for vs_adv in [False, True]:
+                g = completed[(completed[delta_col] >= 0) == metric_adv]
+                g = g[(g["delta_VS"] >= 0) == vs_adv]
+                stats = _expected_group(g)
+                rows.append({
+                    "metric": metric_label,
+                    "metric_adv": metric_adv,
+                    "vs_adv": vs_adv,
+                    "label": f"{metric_label}{'優位' if metric_adv else '劣位'}・VS{'優位' if vs_adv else '劣位'}",
+                    "win_rate": stats["actual"],
+                    **stats,
                 })
-        except ValueError:
-            pass
+        return rows
+
+    # APM/VS・PPS/VS優劣4分類。期待勝率があるマッチで実績・期待・超過を揃える。
+    dominance = _dominance_table("APM", "delta_APM")
+    pps_vs_dominance = _dominance_table("PPS", "delta_PPS")
+
+    # Δ指標の分位ビン。
+    delta_metric_bins = {}
+    for metric_label, delta_col in {
+        "VS": "delta_VS",
+        "PPS": "delta_PPS",
+        "APM": "delta_APM",
+        "Area": "delta_Area",
+    }.items():
+        bins = []
+        dvalid = completed.dropna(subset=[delta_col])
+        if len(dvalid) >= 20:
+            try:
+                dvalid = dvalid.copy()
+                bin_col = f"{delta_col}_bin"
+                dvalid[bin_col] = pd.qcut(dvalid[delta_col], q=min(8, dvalid[delta_col].nunique()), duplicates="drop")
+                for interval, g in dvalid.groupby(bin_col, observed=True):
+                    bins.append({
+                        "label": str(interval), "n": int(len(g)),
+                        "delta_mean": float(g[delta_col].mean()), "win_rate": float(g["won"].mean()),
+                    })
+            except ValueError:
+                pass
+        delta_metric_bins[metric_label] = bins
+    delta_vs_bins = delta_metric_bins["VS"]
 
     # プレイスタイル。
     style_means = {
@@ -1274,6 +1367,142 @@ def analyze_csv(
                     "month": monthly.loc[idx, "month"], "change": float(diff.loc[idx])
                 }
 
+    # ===== レポート拡張（2026-07計画 Phase 1）の集計 =====
+    # ⑥ ランク推移。ランク昇降イベントをTR推移へ重ねるための遷移点。
+    rank_journey: dict[str, Any] = {"transitions": [], "current": None}
+    if "league_rank_after" in completed and completed["league_rank_after"].notna().any():
+        rseries = completed.dropna(subset=["league_rank_after"])
+        prev = None
+        for _, row in rseries.iterrows():
+            cur = str(row["league_rank_after"]).strip()
+            if prev is not None and cur != prev:
+                rank_journey["transitions"].append({
+                    "date": row["played_at_jst"],
+                    "from": prev, "to": cur,
+                    "direction": "up" if _rank_order(cur) > _rank_order(prev) else "down",
+                    "tr_after": float(row["tr_after"]) if pd.notna(row.get("tr_after")) else None,
+                })
+            prev = cur
+        rank_journey["current"] = prev
+
+    # ⑧ セッション内の失速曲線。位置別の勝率と能力指標（APM/PPS/VS/Area）。
+    session_decay = []
+    for label, g in completed.groupby("session_position_bin", observed=False):
+        if not len(g):
+            continue
+        ge = g[g["expected_win"].notna()]
+        session_decay.append({
+            "label": str(label), "n": int(len(g)),
+            "win_rate": float(g["won"].mean()),
+            "expected": float(ge["expected_win"].mean()) if len(ge) else math.nan,
+            "excess": float(ge["won"].mean() - ge["expected_win"].mean()) if len(ge) else math.nan,
+            "apm": float(g["apm"].mean()) if "apm" in g else math.nan,
+            "pps": float(g["pps"].mean()) if "pps" in g else math.nan,
+            "vs": float(g["vs"].mean()) if "vs" in g else math.nan,
+            "area": float(g["Area"].mean()) if "Area" in g else math.nan,
+        })
+
+    # ⑨ 逆転・リバーススイープ。第1ラウンドの価値、最大ビハインド別勝率、逆転件数。
+    first_won_ids, first_lost_ids = [], []
+    deficit_buckets: dict[int, list[bool]] = {1: [], 2: [], 3: [], 4: []}
+    reverse_sweeps = []
+    for match_number, mm in completed.iterrows():
+        r = rounds[rounds["match_number"] == match_number].sort_values("round")
+        if r.empty:
+            continue
+        own = r["round_won"].astype(int).tolist()
+        opp = r["opponent_round_won"].astype(int).tolist()
+        (first_won_ids if own[0] == 1 else first_lost_ids).append(match_number)
+        ow = oc = 0
+        min_lead = 0
+        for i in range(len(own)):
+            ow += own[i]
+            oc += opp[i]
+            min_lead = min(min_lead, ow - oc)
+        max_deficit = -min_lead
+        if max_deficit >= 1:
+            deficit_buckets[min(max_deficit, 4)].append(bool(mm["won"]))
+        if max_deficit >= 2 and bool(mm["won"]):
+            reverse_sweeps.append({
+                "match_id": mm.get("match_id"), "opponent": mm.get("opponent"),
+                "date": mm["played_at_jst"], "max_deficit": int(max_deficit),
+            })
+
+    def _first_round_group(ids: list) -> dict[str, Any]:
+        g = completed.loc[completed.index.isin(ids)]
+        ge = g[g["expected_win"].notna()]
+        return {
+            "n": int(len(g)),
+            "win_rate": float(g["won"].mean()) if len(g) else math.nan,
+            "expected": float(ge["expected_win"].mean()) if len(ge) else math.nan,
+            "excess": float(ge["won"].mean() - ge["expected_win"].mean()) if len(ge) else math.nan,
+        }
+
+    comeback = {
+        "by_first_round": {
+            "won_first": _first_round_group(first_won_ids),
+            "lost_first": _first_round_group(first_lost_ids),
+        },
+        "by_max_deficit": [
+            {"deficit": ("4点以上" if k == 4 else f"{k}点"), "n": len(v),
+             "win_rate": (float(np.mean(v)) if v else math.nan)}
+            for k, v in sorted(deficit_buckets.items())
+        ],
+        "reverse_sweeps_n": len(reverse_sweeps),
+        "reverse_sweeps": reverse_sweeps[-10:],
+    }
+
+    # 案A プレイスタイル相性マップ。相手の2軸平面にマッチ単位で配置し、勝敗で色分け。
+    # 縦=Opener−Inf DS、横=Stride−Plonk。散布の個票はチャートが matches を直接参照する。
+    style_matchup_plane: dict[str, Any] = {}
+    axis_x, axis_y = "opponent_Stride - Plonk", "opponent_Opener - Inf DS"
+    if axis_x in completed and axis_y in completed:
+        sp = completed.dropna(subset=[axis_x, axis_y])
+        if len(sp) >= 30:
+            quadrants = []
+            for yname, ymask in [("Opener寄り", sp[axis_y] >= 0), ("Inf DS寄り", sp[axis_y] < 0)]:
+                for xname, xmask in [("Stride寄り", sp[axis_x] >= 0), ("Plonk寄り", sp[axis_x] < 0)]:
+                    q = sp[ymask & xmask]
+                    stats = _expected_group(q)
+                    quadrants.append({
+                        "label": f"{yname.replace('寄り', '優位')}・{xname.replace('寄り', '優位')}",
+                        "n": stats["n"],
+                        "actual": stats["actual"],
+                        "expected": stats["expected"],
+                        "excess": stats["excess"],
+                        "win_rate": stats["actual"],
+                        "all_n": stats["all_n"],
+                    })
+            style_matchup_plane = {
+                "n": int(len(sp)),
+                "quadrants": quadrants,
+                "self_pos": {
+                    "x": float(completed["Stride - Plonk"].mean()) if "Stride - Plonk" in completed else None,
+                    "y": float(completed["Opener - Inf DS"].mean()) if "Opener - Inf DS" in completed else None,
+                },
+                "axis_labels": {"x": "Plonk ←→ Stride", "y": "Inf DS ←→ Opener"},
+            }
+
+    # ⑤ ライバル（遭遇回数と対戦結果）。summaryは実名を保持し、表示の匿名化は描画側で行う。
+    rivals = []
+    if "opponent_id" in completed or "opponent" in completed:
+        key = completed["opponent_id"] if "opponent_id" in completed else completed["opponent"]
+        if "opponent" in completed:
+            key = key.where(key.notna() & (key.astype(str).str.len() > 0), completed["opponent"])
+        for oid, g in completed.groupby(key, sort=False):
+            if oid is None or (isinstance(oid, float) and math.isnan(oid)) or str(oid).strip() == "":
+                continue
+            n = int(len(g))
+            wins = int(g["won"].sum())
+            name = str(g["opponent"].dropna().iloc[0]) if ("opponent" in g and g["opponent"].notna().any()) else str(oid)
+            rivals.append({
+                "opponent": name, "n": n, "wins": wins, "losses": n - wins,
+                "win_rate": float(wins / n) if n else math.nan,
+                "last_played": g["played_at_jst"].max(),
+            })
+        rivals.sort(key=lambda r: (r["n"], r["wins"]), reverse=True)
+        rivals = rivals[:20]
+
     summary = {
         "schema_version": "1.0.0",
         "source": {"filename": csv_path.name, "sha256": file_sha256(csv_path), "rows": int(len(raw))},
@@ -1327,8 +1556,10 @@ def analyze_csv(
         "stability": stability,
         "monthly_changes": monthly_changes,
         "effect_sizes": effect_sizes,
+        "delta_metric_bins": delta_metric_bins,
         "delta_vs_bins": delta_vs_bins,
         "dominance": dominance,
+        "pps_vs_dominance": pps_vs_dominance,
         "model": model,
         "styles": {"means": style_means, "representative": max(style_means, key=lambda s: style_means[s]["self"]), "matchups": style_matchups},
         "styles_recent": {"means": style_means_recent, "representative": representative_recent, "matchups": style_matchups_recent},
@@ -1347,8 +1578,33 @@ def analyze_csv(
         "score_states": score_states,
         "pps_bins": pps_bins,
         "records": records,
+        "rank_journey": rank_journey,
+        "session_decay": session_decay,
+        "comeback": comeback,
+        "style_matchup_plane": style_matchup_plane,
+        "rivals": rivals,
     }
     return AnalysisBundle(rounds=rounds, matches=completed, monthly=monthly, tiebreak_rounds=tiebreak_rounds, summary=_jsonable(summary))
+
+
+def _alpha_label(i: int) -> str:
+    """0->A, 1->B, ... 25->Z, 26->AA。"""
+    label = ""
+    i += 1
+    while i > 0:
+        i, rem = divmod(i - 1, 26)
+        label = chr(ord("A") + rem) + label
+    return label
+
+
+def apply_opponent_display(summary: dict[str, Any], show_names: bool = False) -> None:
+    """対戦相手の表示ラベルを設定する。既定は匿名（ライバルA, B, …）、show_namesで実名。
+
+    summaryは破壊的に更新する。実名は summary 内に保持したまま、表示用の label を付与する。
+    描画（チャート・本文）は label を参照する。
+    """
+    for i, r in enumerate(summary.get("rivals", []) or []):
+        r["label"] = r.get("opponent", "") if show_names else f"ライバル{_alpha_label(i)}"
 
 
 def write_analysis_outputs(bundle: AnalysisBundle, cache_dir: Path) -> None:

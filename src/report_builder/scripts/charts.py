@@ -66,13 +66,13 @@ def save(fig: plt.Figure, path: Path) -> None:
 
 
 def _set_padded_ylim(ax, values: pd.Series, pad_ratio: float = 0.12) -> None:
-    vals = pd.to_numeric(values, errors="coerce").dropna()
+    """実際のmin/maxを基準に余白を付ける。分位点でクリップすると線が軸に収まらないため使わない。"""
+    vals = pd.to_numeric(values, errors="coerce")
+    vals = vals[np.isfinite(vals)]
     if vals.empty:
         return
-    lo = float(vals.quantile(0.02))
-    hi = float(vals.quantile(0.98))
-    if not np.isfinite(lo) or not np.isfinite(hi):
-        return
+    lo = float(vals.min())
+    hi = float(vals.max())
     pad = max(abs(hi) * pad_ratio, 1.0) if math.isclose(lo, hi) else (hi - lo) * pad_ratio
     ax.set_ylim(lo - pad, hi + pad)
 
@@ -109,9 +109,38 @@ def _wrap_label(label: str, width: int = 8) -> str:
     return label[:width] + "\n" + label[width:]
 
 
+def _rate_label(value: float) -> str:
+    return f"{value:.1f}%" if value is not None and np.isfinite(value) else "—"
+
+
+def _annotate_grouped_rate_bars(ax, centers, series_values, ns, offsets) -> None:
+    for values, offset in zip(series_values, offsets):
+        for x, value in zip(centers, values):
+            if value is None or not np.isfinite(value):
+                continue
+            ax.text(x + offset, min(value + 1.8, 106), _rate_label(value),
+                    ha="center", va="bottom", fontsize=7.5)
+    for x, n in zip(centers, ns):
+        ax.text(x, 2.0, f"n={n}", ha="center", va="bottom", fontsize=7.5, color="#374151")
+
+
+def _annotate_single_rate_bars(ax, xs, values, ns) -> None:
+    for x, value, n in zip(xs, values, ns):
+        if value is not None and np.isfinite(value):
+            ax.text(x, min(value + 1.8, 106), _rate_label(value),
+                    ha="center", va="bottom", fontsize=7.5)
+        ax.text(x, 2.0, f"n={n}", ha="center", va="bottom", fontsize=7.5, color="#374151")
+
+
+def _set_rate_axis(ax, ylabel: str = "勝率（%）") -> None:
+    ax.set_ylim(0, 108)
+    ax.set_yticks([0, 20, 40, 60, 80, 100])
+    ax.set_ylabel(ylabel)
+
+
 def chart_tr_history(bundle: AnalysisBundle, out: Path) -> None:
     m = bundle.matches.dropna(subset=["tr_after"])
-    fig, ax = plt.subplots(figsize=(10.5, 4.4))
+    fig, ax = plt.subplots(figsize=(11.5, 4.6))
     bg_handles = []
     rating_values = [m["tr_after"]]
     est_tr_col = "Est. TR"
@@ -126,19 +155,41 @@ def chart_tr_history(bundle: AnalysisBundle, out: Path) -> None:
         bg_handles.append(line)
         rating_values.append(est_tr)
     tr_line, = ax.plot(m["played_at_jst"], m["tr_after"], linewidth=1.35, label="TR", zorder=3, color="#f97316")
-    _set_padded_ylim(ax, pd.concat(rating_values, ignore_index=True), pad_ratio=0.05)
+    _set_padded_ylim(ax, pd.concat(rating_values, ignore_index=True), pad_ratio=0.1)
     if len(m):
         peak = m.loc[m["tr_after"].idxmax()]
         ax.scatter([peak["played_at_jst"]], [peak["tr_after"]], s=36, zorder=4, color="#f97316")
         ax.annotate(f"ピーク {peak['tr_after']:,.0f}", (peak["played_at_jst"], peak["tr_after"]), xytext=(8, 10), textcoords="offset points", fontsize=9)
+
+    # リーグランクが切り替わった地点に新ランク（例：U）を表示し、ランク推移をTR推移へ統合する。
+    rank_handle = None
+    transitions = bundle.summary.get("rank_journey", {}).get("transitions", [])
+    rank_points = [
+        (pd.to_datetime(t.get("date"), errors="coerce"), t.get("tr_after"), str(t.get("to", "")).strip())
+        for t in transitions
+    ]
+    rank_points = [(d, y, lab) for d, y, lab in rank_points if lab and y is not None and pd.notna(d)]
+    if rank_points:
+        xs = [d for d, _, _ in rank_points]
+        ys = [y for _, y, _ in rank_points]
+        rank_handle = ax.scatter(xs, ys, s=26, marker="D", color="#7c3aed", zorder=5, label="ランク変化")
+        for i, (d, y, lab) in enumerate(rank_points):
+            y_off = 10 if i % 2 == 0 else -13
+            va = "bottom" if i % 2 == 0 else "top"
+            ax.annotate(lab.upper(), (d, y), xytext=(0, y_off), textcoords="offset points",
+                        ha="center", va=va, fontsize=8, color="#7c3aed", fontweight="bold", zorder=6)
+
     ax.set_title("TR推移")
     ax.set_ylabel("TR")
     ax.grid(alpha=0.3)
-    ax.legend(handles=[tr_line, *bg_handles], loc="center left", bbox_to_anchor=(1.08, 0.5), frameon=False, fontsize=8.5)
+    handles = [tr_line, *bg_handles]
+    if rank_handle is not None:
+        handles.append(rank_handle)
+    _legend_below(ax, handles=handles, labels=[h.get_label() for h in handles], ncol=min(len(handles), 3), fontsize=8.5)
     ax.xaxis.set_major_locator(mdates.AutoDateLocator(minticks=5, maxticks=10))
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m"))
     fig.autofmt_xdate()
-    fig.tight_layout(rect=(0, 0.08, 1, 1))
+    fig.tight_layout(rect=(0, 0.12, 1, 1))
     save(fig, out / "01_tr_history.png")
 
 
@@ -275,47 +326,60 @@ def chart_effect_sizes(bundle: AnalysisBundle, out: Path) -> None:
 
 
 def chart_delta_vs(bundle: AnalysisBundle, out: Path) -> None:
-    bins = bundle.summary["delta_vs_bins"]
-    fig, ax = plt.subplots(figsize=(8.7, 4.7))
-    if bins:
-        x = [b["delta_mean"] for b in bins]
-        y = [b["win_rate"] * 100 for b in bins]
-        n = [b["n"] for b in bins]
-        ax.plot(x, y, marker="o")
-        for xx, yy, nn in zip(x, y, n):
-            ax.annotate(f"n={nn}", (xx, yy), xytext=(0, 7), textcoords="offset points", ha="center", fontsize=7)
-    ax.axhline(50, linewidth=1, linestyle="--")
-    ax.axvline(0, linewidth=1, linestyle=":")
-    ax.set_title("相対VS差と勝率")
-    ax.set_xlabel("自分VS - 相手VS")
-    ax.set_ylabel("勝率（%）")
-    ax.grid(alpha=0.25)
-    save(fig, out / "09_delta_vs_winrate.png")
+    specs = [
+        ("VS", "自分VS - 相手VS", "相対VS差と勝率", "09_delta_vs_winrate.png"),
+        ("PPS", "自分PPS - 相手PPS", "相対PPS差と勝率", "09_delta_pps_winrate.png"),
+        ("APM", "自分APM - 相手APM", "相対APM差と勝率", "09_delta_apm_winrate.png"),
+        ("Area", "自分Area - 相手Area", "相対Area差と勝率", "09_delta_area_winrate.png"),
+    ]
+    all_bins = bundle.summary.get("delta_metric_bins", {"VS": bundle.summary.get("delta_vs_bins", [])})
+    for metric, xlabel, title, filename in specs:
+        bins = all_bins.get(metric, [])
+        fig, ax = plt.subplots(figsize=(8.7, 4.7))
+        if bins:
+            x = [b["delta_mean"] for b in bins]
+            y = [b["win_rate"] * 100 for b in bins]
+            n = [b["n"] for b in bins]
+            ax.plot(x, y, marker="o")
+            for xx, yy, nn in zip(x, y, n):
+                ax.annotate(f"n={nn}", (xx, yy), xytext=(0, 7), textcoords="offset points", ha="center", fontsize=7)
+        ax.axhline(50, linewidth=1, linestyle="--")
+        ax.axvline(0, linewidth=1, linestyle=":")
+        ax.set_title(title)
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel("勝率（%）")
+        ax.grid(alpha=0.25)
+        save(fig, out / filename)
 
 
 def chart_dominance(bundle: AnalysisBundle, out: Path) -> None:
-    mat = np.full((2, 2), np.nan)
-    ns = np.zeros((2, 2), dtype=int)
-    for row in bundle.summary["dominance"]:
-        i = 1 if row["vs_adv"] else 0
-        j = 1 if row["apm_adv"] else 0
-        win_rate = row.get("win_rate")
-        if win_rate is not None and np.isfinite(win_rate):
-            mat[i, j] = win_rate * 100
-        ns[i, j] = row["n"]
-    fig, ax = plt.subplots(figsize=(6.0, 5.0))
-    cmap = plt.get_cmap("viridis").copy()
-    cmap.set_bad("#f3f4f6")
-    im = ax.imshow(np.ma.masked_invalid(mat), cmap=cmap, vmin=0, vmax=100, aspect="auto")
-    ax.set_xticks([0, 1], ["APM劣位", "APM優位"])
-    ax.set_yticks([0, 1], ["VS劣位", "VS優位"])
-    for i in range(2):
-        for j in range(2):
-            label = f"{mat[i,j]:.1f}%\nn={ns[i,j]}" if np.isfinite(mat[i, j]) else f"—\nn={ns[i,j]}"
-            ax.text(j, i, label, ha="center", va="center")
-    ax.set_title("APM・VS相対優位による勝率")
-    fig.colorbar(im, ax=ax, label="勝率（%）")
-    save(fig, out / "10_apm_vs_dominance_heatmap.png")
+    specs = [
+        ("delta_APM", "delta_VS", "自分APM - 相手APM", "自分VS - 相手VS",
+         "APM・VS相対優位による勝敗分布", "10_apm_vs_dominance_scatter.png"),
+        ("delta_PPS", "delta_VS", "自分PPS - 相手PPS", "自分VS - 相手VS",
+         "PPS・VS相対優位による勝敗分布", "11_pps_vs_dominance_scatter.png"),
+    ]
+    m = bundle.matches
+    for xcol, ycol, xlabel, ylabel, title, filename in specs:
+        fig, ax = plt.subplots(figsize=(8.4, 6.4))
+        if xcol in m and ycol in m and "won" in m:
+            d = m.dropna(subset=[xcol, ycol]).copy()
+            d["won"] = d["won"].astype(bool)
+            win = d[d["won"]]
+            loss = d[~d["won"]]
+            ax.scatter(loss[xcol], loss[ycol], s=22, alpha=0.45, color="#dc2626",
+                       edgecolors="none", label="負け", zorder=2)
+            ax.scatter(win[xcol], win[ycol], s=22, alpha=0.45, color="#16a34a",
+                       edgecolors="none", label="勝ち", zorder=3)
+            ax.legend(frameon=False, fontsize=9, loc="best")
+        ax.axhline(0, color="#9ca3af", linewidth=0.8)
+        ax.axvline(0, color="#9ca3af", linewidth=0.8)
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
+        ax.set_title(title)
+        ax.grid(alpha=0.2)
+        fig.tight_layout()
+        save(fig, out / filename)
 
 
 def chart_tr_gap(bundle: AnalysisBundle, out: Path) -> None:
@@ -382,19 +446,154 @@ def chart_tiebreak(bundle: AnalysisBundle, out: Path) -> None:
     if routes:
         x = np.arange(len(routes))
         width = 0.36
-        ax.bar(x - width / 2, [r["win_rate"] * 100 for r in routes], width, label="実績")
-        ax.bar(x + width / 2, [r["expected"] * 100 for r in routes], width, label="期待")
+        actual = [r["win_rate"] * 100 for r in routes]
+        expected = [r["expected"] * 100 for r in routes]
+        ax.bar(x - width / 2, actual, width, label="実績")
+        ax.bar(x + width / 2, expected, width, label="期待")
         ax.set_xticks(x, [_wrap_label(str(r["route"]), width=9) for r in routes], rotation=0, ha="center")
-        for i, r in enumerate(routes):
-            ax.text(i, max(r["win_rate"], r["expected"]) * 100 + 2, f"n={r['n']}", ha="center", fontsize=8)
-    ax.set_ylim(0, 100)
+        _annotate_grouped_rate_bars(ax, x, [actual, expected], [r["n"] for r in routes], [-width / 2, width / 2])
+    _set_rate_axis(ax)
     ax.axhline(50, linewidth=1, linestyle="--")
     ax.set_title("タイブレーク到達経路別の実績 vs 期待")
-    ax.set_ylabel("勝率（%）")
     ax.legend(frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.12), ncol=2)
     ax.grid(axis="y", alpha=0.25)
     fig.tight_layout(rect=(0, 0, 0.82, 1))
     save(fig, out / "15_tiebreak_analysis.png")
+
+
+def chart_rivals(bundle: AnalysisBundle, out: Path) -> None:
+    rivals = list(bundle.summary.get("rivals", []) or [])[:10]
+    fig, ax = plt.subplots(figsize=(9.8, 5.2))
+    if rivals:
+        rivals = list(reversed(rivals))  # 最多を上に
+        labels = [r.get("label") or r.get("opponent", "?") for r in rivals]
+        ns = [r["n"] for r in rivals]
+        wr = [r.get("win_rate", 0.0) for r in rivals]
+        cmap = plt.get_cmap("RdYlGn")
+        colors = [cmap(w if w is not None and np.isfinite(w) else 0.5) for w in wr]
+        ax.barh(np.arange(len(rivals)), ns, color=colors, edgecolor="#4b5563", linewidth=0.5)
+        ax.set_yticks(np.arange(len(rivals)), labels)
+        nmax = max(ns)
+        for i, r in enumerate(rivals):
+            ax.text(r["n"] + nmax * 0.01, i, f"{r['wins']}勝{r['losses']}敗（{r.get('win_rate', 0) * 100:.0f}%）",
+                    va="center", fontsize=8)
+        ax.set_xlim(0, nmax * 1.28)
+        ax.set_xlabel("遭遇回数（マッチ）")
+        sm = plt.cm.ScalarMappable(cmap=cmap, norm=plt.Normalize(0, 1))
+        fig.colorbar(sm, ax=ax, label="勝率")
+    ax.set_title("ライバル（遭遇回数 Top10）")
+    ax.grid(axis="x", alpha=0.25)
+    fig.tight_layout()
+    save(fig, out / "27_rivals.png")
+
+
+def chart_style_matchup_plane(bundle: AnalysisBundle, out: Path) -> None:
+    p = bundle.summary.get("style_matchup_plane", {})
+    labels = p.get("axis_labels", {})
+    xcol, ycol = "opponent_Stride - Plonk", "opponent_Opener - Inf DS"
+    m = bundle.matches
+    fig, ax = plt.subplots(figsize=(8.6, 6.9))
+    if xcol in m and ycol in m and "won" in m:
+        d = m.dropna(subset=[xcol, ycol]).copy()
+        d["won"] = d["won"].astype(bool)
+        win = d[d["won"]]
+        loss = d[~d["won"]]
+        ax.scatter(loss[xcol], loss[ycol], s=22, alpha=0.45, color="#dc2626",
+                   edgecolors="none", label="負け", zorder=2)
+        ax.scatter(win[xcol], win[ycol], s=22, alpha=0.45, color="#16a34a",
+                   edgecolors="none", label="勝ち", zorder=3)
+        ax.legend(frameon=False, fontsize=9, loc="best")
+    sp = p.get("self_pos", {})
+    if sp.get("x") is not None and sp.get("y") is not None:
+        ax.scatter([sp["x"]], [sp["y"]], marker="*", s=360, color="#111827",
+                   edgecolors="#ffffff", linewidths=0.8, zorder=5)
+        ax.annotate("自分の平均スタイル位置", (sp["x"], sp["y"]), xytext=(10, -14),
+                    textcoords="offset points", fontsize=9, color="#111827",
+                    fontweight="bold", zorder=5)
+    ax.axhline(0, color="#9ca3af", linewidth=0.8)
+    ax.axvline(0, color="#9ca3af", linewidth=0.8)
+    ax.set_xlabel(labels.get("x", "Plonk ←→ Stride"))
+    ax.set_ylabel(labels.get("y", "Inf DS ←→ Opener"))
+    ax.set_title("プレイスタイル相性マップ（相手スタイル × 勝敗）")
+    ax.grid(alpha=0.2)
+    fig.tight_layout()
+    save(fig, out / "25_style_matchup_plane.png")
+
+
+def chart_session_decay(bundle: AnalysisBundle, out: Path) -> None:
+    d = bundle.summary.get("session_decay", [])
+    fig, ax = plt.subplots(figsize=(10.5, 4.6))
+    if d:
+        x = np.arange(len(d))
+        wr = [(r["win_rate"] * 100 if r.get("win_rate") is not None and np.isfinite(r.get("win_rate")) else np.nan) for r in d]
+        ax.bar(x, wr, color="#93c5fd", label="勝率")
+        ax.axhline(50, linewidth=1, linestyle="--", color="#6b7280")
+        _set_rate_axis(ax)
+        ax.set_xticks(x, [r["label"] for r in d], rotation=20, ha="right")
+        _annotate_single_rate_bars(ax, x, wr, [r["n"] for r in d])
+        # 副軸：各指標を1マッチ目（先頭位置）=100で正規化した4本線。
+        ax2 = ax.twinx()
+        series = [("APM", "apm", "#ea580c"), ("PPS", "pps", "#7c3aed"),
+                  ("VS", "vs", "#0891b2"), ("Area", "area", "#65a30d")]
+        for label, key, color in series:
+            vals = np.array([r.get(key) if r.get(key) is not None else np.nan for r in d], dtype=float)
+            finite = vals[np.isfinite(vals)]
+            base = finite[0] if len(finite) and finite[0] != 0 else np.nan
+            norm = vals / base * 100 if np.isfinite(base) else vals * np.nan
+            ax2.plot(x, norm, marker="o", linewidth=1.6, label=label, color=color)
+        ax2.set_ylabel("能力指標（1マッチ目=100）")
+        ax2.axhline(100, linewidth=0.8, linestyle=":", color="#9ca3af")
+        h1, l1 = ax.get_legend_handles_labels()
+        h2, l2 = ax2.get_legend_handles_labels()
+        ax.legend(h1 + h2, l1 + l2, frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.2), ncol=5, fontsize=9)
+    ax.set_title("セッション内のマッチ位置別 勝率と能力指標（正規化）")
+    ax.grid(axis="y", alpha=0.25)
+    fig.tight_layout(rect=(0, 0.08, 1, 1))
+    save(fig, out / "29_session_decay.png")
+
+
+def chart_comeback(bundle: AnalysisBundle, out: Path) -> None:
+    c = bundle.summary.get("comeback", {})
+    fr = c.get("by_first_round", {})
+    deficit = c.get("by_max_deficit", [])
+    fig, axes = plt.subplots(1, 2, figsize=(11.4, 4.6))
+
+    # 左: 第1ラウンド勝敗別の実績 vs 期待マッチ勝率。
+    ax = axes[0]
+    groups = [("第1R勝利", fr.get("won_first", {})), ("第1R敗北", fr.get("lost_first", {}))]
+    x = np.arange(len(groups))
+    width = 0.36
+    actual = [(g.get("win_rate") if g.get("win_rate") is not None else np.nan) for _, g in groups]
+    expected = [(g.get("expected") if g.get("expected") is not None else np.nan) for _, g in groups]
+    actual = [v * 100 if v is not None and np.isfinite(v) else np.nan for v in actual]
+    expected = [v * 100 if v is not None and np.isfinite(v) else np.nan for v in expected]
+    ax.bar(x - width / 2, actual, width, label="実績")
+    ax.bar(x + width / 2, expected, width, label="期待")
+    ax.set_xticks(x, [g[0] for g in groups])
+    _annotate_grouped_rate_bars(ax, x, [actual, expected], [g.get("n", 0) for _, g in groups], [-width / 2, width / 2])
+    ax.axhline(50, linewidth=1, linestyle="--")
+    _set_rate_axis(ax, "マッチ勝率（%）")
+    ax.set_title("第1ラウンドの勝敗別マッチ勝率")
+    ax.legend(frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.12), ncol=2)
+    ax.grid(axis="y", alpha=0.25)
+
+    # 右: マッチ中の最大ビハインド別の勝率。
+    ax2 = axes[1]
+    if deficit:
+        xd = np.arange(len(deficit))
+        rates = [(d.get("win_rate") * 100 if d.get("win_rate") is not None and np.isfinite(d.get("win_rate")) else np.nan) for d in deficit]
+        ax2.bar(xd, rates, color="#ef4444")
+        ax2.set_xticks(xd, [d["deficit"] for d in deficit])
+        _annotate_single_rate_bars(ax2, xd, rates, [d["n"] for d in deficit])
+    ax2.axhline(50, linewidth=1, linestyle="--")
+    _set_rate_axis(ax2, "マッチ勝率（%）")
+    ax2.set_xlabel("マッチ中の最大ビハインド")
+    ax2.set_title("最大ビハインド別のマッチ勝率")
+    ax2.grid(axis="y", alpha=0.25)
+
+    fig.suptitle("逆転・リバーススイープ", y=1.02)
+    fig.tight_layout()
+    save(fig, out / "28_comeback.png")
 
 
 def chart_session_position(bundle: AnalysisBundle, out: Path) -> None:
@@ -403,14 +602,14 @@ def chart_session_position(bundle: AnalysisBundle, out: Path) -> None:
     fig, ax = plt.subplots(figsize=(10.5, 4.5))
     width = 0.36
     if d:
-        ax.bar(x - width / 2, [r["actual"] * 100 for r in d], width, label="実績")
-        ax.bar(x + width / 2, [r["expected"] * 100 for r in d], width, label="期待")
+        actual = [r["actual"] * 100 for r in d]
+        expected = [r["expected"] * 100 for r in d]
+        ax.bar(x - width / 2, actual, width, label="実績")
+        ax.bar(x + width / 2, expected, width, label="期待")
         ax.set_xticks(x, [r["label"] for r in d], rotation=20, ha="right")
-        for i, r in enumerate(d):
-            ax.text(i, max(r["actual"], r["expected"]) * 100 + 1.5, f"n={r['n']}", ha="center", fontsize=8)
-    ax.set_ylim(0, 100)
+        _annotate_grouped_rate_bars(ax, x, [actual, expected], [r["n"] for r in d], [-width / 2, width / 2])
+    _set_rate_axis(ax)
     ax.set_title("セッション内のマッチ位置別勝率")
-    ax.set_ylabel("勝率（%）")
     ax.axhline(50, linewidth=1, linestyle="--")
     ax.legend(frameon=False)
     ax.grid(axis="y", alpha=0.25)
@@ -422,14 +621,14 @@ def _chart_excess_breakdown(rows: list[dict], title: str, output: Path) -> None:
     fig, ax = plt.subplots(figsize=(10.5, 4.5))
     width = 0.36
     if rows:
-        ax.bar(x - width / 2, [r["actual"] * 100 for r in rows], width, label="実績")
-        ax.bar(x + width / 2, [r["expected"] * 100 for r in rows], width, label="期待")
+        actual = [r["actual"] * 100 for r in rows]
+        expected = [r["expected"] * 100 for r in rows]
+        ax.bar(x - width / 2, actual, width, label="実績")
+        ax.bar(x + width / 2, expected, width, label="期待")
         ax.set_xticks(x, [r["label"] for r in rows], rotation=0, ha="center")
-        for i, r in enumerate(rows):
-            ax.text(i, max(r["actual"], r["expected"]) * 100 + 1.5, f"n={r['n']}", ha="center", fontsize=8)
-    ax.set_ylim(0, 100)
+        _annotate_grouped_rate_bars(ax, x, [actual, expected], [r["n"] for r in rows], [-width / 2, width / 2])
+    _set_rate_axis(ax)
     ax.set_title(title)
-    ax.set_ylabel("勝率（%）")
     ax.legend(frameon=False)
     ax.grid(axis="y", alpha=0.25)
     fig.tight_layout()
@@ -478,12 +677,10 @@ def chart_score_state(bundle: AnalysisBundle, out: Path) -> None:
         x = np.arange(len(states))
         ax.bar(x, rates, color=colors)
         ax.set_xticks(x, labels, rotation=0, ha="center")
-        for i, s in enumerate(states):
-            ax.text(i, rates[i] + 1.5, f"n={s['n']}", ha="center", fontsize=8)
+        _annotate_single_rate_bars(ax, x, rates, [s["n"] for s in states])
     ax.axhline(50, linewidth=1, linestyle="--")
-    ax.set_ylim(0, 100)
+    _set_rate_axis(ax)
     ax.set_title("スコア状況別・次ラウンド勝率（ラウンド開始前スコアで分類）")
-    ax.set_ylabel("勝率（%）")
     ax.grid(axis="y", alpha=0.25)
     fig.tight_layout()
     save(fig, out / "18_score_state_next_round.png")
@@ -621,7 +818,9 @@ def generate_all_charts(bundle: AnalysisBundle, output_dir: Path) -> None:
         chart_tr_history, chart_metric_distributions, chart_capability_radar, chart_style_radar,
         chart_style_trend, chart_monthly_trends, chart_stability_windows, chart_effect_sizes,
         chart_delta_vs, chart_dominance, chart_tr_gap,
-        chart_drawdown, chart_streaks, chart_tiebreak, chart_session_position,
+        chart_style_matchup_plane, chart_rivals,
+        chart_drawdown, chart_streaks, chart_tiebreak, chart_comeback,
+        chart_session_position, chart_session_decay,
         chart_duration, chart_score_state, chart_duration_deltas,
         chart_excess_weekday, chart_excess_hour,
     ]

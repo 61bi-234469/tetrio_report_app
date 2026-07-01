@@ -1480,12 +1480,12 @@ def analyze_csv(
         sp = completed.dropna(subset=[axis_x, axis_y])
         if len(sp) >= 30:
             quadrants = []
-            for yname, ymask in [("Opener寄り", sp[axis_y] >= 0), ("Inf DS寄り", sp[axis_y] < 0)]:
-                for xname, xmask in [("Stride寄り", sp[axis_x] >= 0), ("Plonk寄り", sp[axis_x] < 0)]:
+            for yname, ymask in [("Opener", sp[axis_y] >= 0), ("Inf DS", sp[axis_y] < 0)]:
+                for xname, xmask in [("Stride", sp[axis_x] >= 0), ("Plonk", sp[axis_x] < 0)]:
                     q = sp[ymask & xmask]
                     stats = _expected_group(q)
                     quadrants.append({
-                        "label": f"{yname.replace('寄り', '優位')}・{xname.replace('寄り', '優位')}",
+                        "label": f"相手{yname}・{xname}寄り",
                         "n": stats["n"],
                         "actual": stats["actual"],
                         "expected": stats["expected"],
@@ -1503,7 +1503,7 @@ def analyze_csv(
                 "axis_labels": {"x": "Plonk ←→ Stride", "y": "Inf DS ←→ Opener"},
             }
 
-    # ⑤ ライバル（遭遇回数と対戦結果）。summaryは実名を保持し、表示の匿名化は描画側で行う。
+    # ⑤ ライバル（遭遇回数と対戦結果）。相手はTETR.IOのプレイヤーIDで表示する。
     rivals = []
     if "opponent_id" in completed or "opponent" in completed:
         key = completed["opponent_id"] if "opponent_id" in completed else completed["opponent"]
@@ -1515,8 +1515,9 @@ def analyze_csv(
             n = int(len(g))
             wins = int(g["won"].sum())
             name = str(g["opponent"].dropna().iloc[0]) if ("opponent" in g and g["opponent"].notna().any()) else str(oid)
+            label = name.strip() or str(oid)
             rivals.append({
-                "opponent": name, "n": n, "wins": wins, "losses": n - wins,
+                "opponent": label, "label": label, "n": n, "wins": wins, "losses": n - wins,
                 "win_rate": float(wins / n) if n else math.nan,
                 "last_played": g["played_at_jst"].max(),
             })
@@ -1608,26 +1609,6 @@ def analyze_csv(
     return AnalysisBundle(rounds=rounds, matches=completed, monthly=monthly, tiebreak_rounds=tiebreak_rounds, summary=_jsonable(summary))
 
 
-def _alpha_label(i: int) -> str:
-    """0->A, 1->B, ... 25->Z, 26->AA。"""
-    label = ""
-    i += 1
-    while i > 0:
-        i, rem = divmod(i - 1, 26)
-        label = chr(ord("A") + rem) + label
-    return label
-
-
-def apply_opponent_display(summary: dict[str, Any], show_names: bool = False) -> None:
-    """対戦相手の表示ラベルを設定する。既定は匿名（ライバルA, B, …）、show_namesで実名。
-
-    summaryは破壊的に更新する。実名は summary 内に保持したまま、表示用の label を付与する。
-    描画（チャート・本文）は label を参照する。
-    """
-    for i, r in enumerate(summary.get("rivals", []) or []):
-        r["label"] = r.get("opponent", "") if show_names else f"ライバル{_alpha_label(i)}"
-
-
 def write_analysis_outputs(bundle: AnalysisBundle, cache_dir: Path) -> None:
     cache_dir.mkdir(parents=True, exist_ok=True)
     (cache_dir / "analysis_summary.json").write_text(
@@ -1637,6 +1618,19 @@ def write_analysis_outputs(bundle: AnalysisBundle, cache_dir: Path) -> None:
     (cache_dir / "records.json").write_text(
         json.dumps(bundle.summary["records"], ensure_ascii=False, indent=2), encoding="utf-8"
     )
+    ai_rivals = [
+        {
+            "label": r.get("label") or r.get("opponent", ""),
+            "n": r.get("n"),
+            "wins": r.get("wins"),
+            "losses": r.get("losses"),
+            "win_rate": r.get("win_rate"),
+            "last_played": r.get("last_played"),
+        }
+        for r in bundle.summary.get("rivals", []) or []
+    ]
+    comeback = dict(bundle.summary.get("comeback", {}) or {})
+    comeback.pop("reverse_sweeps", None)
     # AIへ渡す最小ペイロード。生データやBase64を含めない。
     ai_payload = {
         "schema_version": bundle.summary["schema_version"],
@@ -1656,21 +1650,27 @@ def write_analysis_outputs(bundle: AnalysisBundle, cache_dir: Path) -> None:
         "effect_sizes": bundle.summary["effect_sizes"],
         "delta_vs_bins": bundle.summary["delta_vs_bins"],
         "dominance": bundle.summary["dominance"],
+        "pps_vs_dominance": bundle.summary["pps_vs_dominance"],
         "model": bundle.summary["model"],
         "styles": {"means": bundle.summary["styles"]["means"]},
         "styles_recent": {"means": bundle.summary["styles_recent"]["means"]},
+        "style_matchup_plane": bundle.summary["style_matchup_plane"],
         "tr_gap": bundle.summary["tr_gap"],
         "drawdown": bundle.summary["drawdown"],
+        "rank_journey": bundle.summary["rank_journey"],
         "streaks": {k: v for k, v in bundle.summary["streaks"].items() if k not in ["win_runs", "loss_runs"]},
         "streak_states": bundle.summary["streak_states"],
         "tiebreak": bundle.summary["tiebreak"],
         "session_positions": bundle.summary["session_positions"],
         "session_dynamics": bundle.summary["session_dynamics"],
+        "session_decay": bundle.summary["session_decay"],
         "excess_by_weekday": bundle.summary["excess_by_weekday"],
         "excess_by_hour": bundle.summary["excess_by_hour"],
         "duration_bins": bundle.summary["duration_bins"],
         "duration_by_result": bundle.summary["duration_by_result"],
         "score_states": bundle.summary["score_states"],
+        "comeback": comeback,
+        "rivals": ai_rivals,
         "pps_bins": bundle.summary["pps_bins"],
         "records": bundle.summary["records"],
     }

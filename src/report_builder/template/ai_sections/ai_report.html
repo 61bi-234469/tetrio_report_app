@@ -68,70 +68,73 @@ footer{margin-top:48px;border-top:1px solid var(--grid);padding-top:18px;color:v
   <div class="note">この別紙は添付JSONの集計値だけを根拠に作成しています。元データの再集計や外部情報の参照は行っていません。</div>
 
   <section id="overview">
-    <h2><span class="no">1</span>これまでの推移</h2>
-    <p class="lead">TR、直近成績、主要指標、ドローダウンの戻り方を確認します。</p>
+    <h2><span class="no">1</span>全体像と基本指標</h2>
+    <p class="lead">対象期間全体の規模、TRの長期推移、直近の実績と対戦前期待値の差を整理します。</p>
 {{ card(overview, "neutral") }}
   </section>
 
-  <section id="strengths">
-    <h2><span class="no">2</span>強み（勝ち筋）</h2>
-    <p class="lead">勝敗差や相対指標から、結果に結びついている傾向を整理します。詳細は該当する粒度の章で扱います。</p>
-{{ card(strengths, "good") }}
+  <section id="growth_stability">
+    <h2><span class="no">2</span>成長推移と安定性</h2>
+    <p class="lead">指標推移、直近窓別平均、TRの安定性、ドローダウンの戻り方を整理します。</p>
+{{ card(growth_stability, "neutral") }}
   </section>
 
-  <section id="weaknesses">
-    <h2><span class="no">3</span>弱み・伸びしろ（負け筋）</h2>
-    <p class="lead">負けやすい条件、安定性、速度帯で弱く出ている傾向を確認します。詳細は該当する粒度の章で扱います。</p>
-{{ card(weaknesses, "issue") }}
+  <section id="capability">
+    <h2><span class="no">3</span>能力バランス</h2>
+    <p class="lead">主要指標の分布、相手平均との差、直近100マッチの能力レーダーと4プレイスタイル値を整理します。</p>
+{{ card(capability, "neutral") }}
   </section>
 
-  <section id="style">
-    <h2><span class="no">4</span>プレイスタイルの特徴（プレイスタイル像）</h2>
-    <p class="lead">全期間と直近100マッチの4プレイスタイル値を整理します。</p>
-{{ card(style, "neutral") }}
+  <section id="win_factors">
+    <h2><span class="no">4</span>勝敗に関係しやすい指標</h2>
+    <p class="lead">勝利時と敗北時の能力差、相手との相対優位、モデルの追加説明力を整理します。</p>
+{{ card(win_factors, "good") }}
   </section>
 
-  <section id="round_states">
-    <h2><span class="no">5</span>ラウンド単位：局面別の揺れ</h2>
-    <p class="lead">ラウンド開始前のスコア状況（同点・リード・ビハインド・各マッチポイント）と、決着時間・タイブレークでの揺れを確認します。</p>
-{{ card(round_states, "neutral") }}
+  <section id="style_matchup">
+    <h2><span class="no">5</span>プレイスタイル相性</h2>
+    <p class="lead">相手スタイルを2軸平面に置き、勝敗と期待超過をマッチ単位で整理します。</p>
+{{ card(style_matchup, "neutral") }}
   </section>
 
-  <section id="streak">
-    <h2><span class="no">6</span>マッチ単位：連勝・連敗による揺れ</h2>
-    <p class="lead">連勝後・連敗後・3連敗（3マッチ連続の敗北）以降でのマッチ勝率と能力指標の揺れを確認します。連勝・連敗はすべてマッチ単位です。</p>
-{{ card(streak, "neutral") }}
+  <section id="opponent_expectation">
+    <h2><span class="no">6</span>対戦相手の強さと期待値</h2>
+    <p class="lead">格上・同格・格下を細分化し、実績勝率が対戦前期待値からどこで外れたかを整理します。</p>
+{{ card(opponent_expectation, "neutral") }}
   </section>
 
-  <section id="session">
-    <h2><span class="no">7</span>セッション単位：マッチ位置と運用提案</h2>
-    <p class="lead">セッション内のマッチ位置と継続傾向（勝ち後／負け後の続けやすさ）、1回のセッションの目安マッチ数・中断ポイントの候補、曜日別・時間帯別の偏りを確認します。</p>
-{{ card(session, "neutral") }}
+  <section id="rivals">
+    <h2><span class="no">7</span>ライバル - 遭遇回数と対戦結果</h2>
+    <p class="lead">よく対戦した相手をプレイヤーIDで扱い、遭遇回数と勝敗の偏りを整理します。</p>
+{{ card(rivals, "neutral") }}
   </section>
 
-  <section id="replays">
-    <h2><span class="no">8</span>次に見るべきリプレイ条件</h2>
-    <p class="lead">勝ち筋・負け筋が分かれやすい条件から、振り返ると確認しやすいリプレイの条件を整理します。プレイングの指示ではなく確認の観点です。</p>
-    <div class="card neutral">
-      <p class="key">{{ replays.key }}</p>
-      <div class="tbl-scroll">
-        <table>
-          <thead>
-            <tr><th>優先度</th><th>見るリプレイ（条件）</th><th>見たい点（確認の観点）</th></tr>
-          </thead>
-          <tbody>
-          {% for row in replays.rows %}
-            <tr><td class="pri {{ 'pri-high' if row.priority == '高' else 'pri-mid' }}">{{ row.priority }}</td><td>{{ row.condition }}</td><td>{{ row.viewpoint }}</td></tr>
-          {% endfor %}
-          </tbody>
-        </table>
-      </div>
-      <p>{{ replays.summary }}</p>
-    </div>
+  <section id="clutch">
+    <h2><span class="no">8</span>接戦・決着局面</h2>
+    <p class="lead">スコア状況別の次ラウンド勝率、マッチポイント局面、タイブレークを整理します。</p>
+{{ card(clutch, "neutral") }}
+  </section>
+
+  <section id="comeback">
+    <h2><span class="no">9</span>逆転・ビハインド展開</h2>
+    <p class="lead">第1ラウンド後の展開と、最大ビハインドからどこまで戻せたかを整理します。</p>
+{{ card(comeback, "issue") }}
+  </section>
+
+  <section id="round_time">
+    <h2><span class="no">10</span>ラウンド展開とマッチ時間</h2>
+    <p class="lead">勝敗別の決着時間分布、時間帯別勝率、時間帯別の能力差分を整理します。</p>
+{{ card(round_time, "neutral") }}
+  </section>
+
+  <section id="session_flow">
+    <h2><span class="no">11</span>連戦の流れとセッション内のマッチ位置</h2>
+    <p class="lead">連勝連敗、前マッチ結果、セッション内のマッチ位置と失速曲線を整理します。</p>
+{{ card(session_flow, "neutral") }}
   </section>
 
   <section id="summary">
-    <h2><span class="no">9</span>総括</h2>
+    <h2><span class="no">12</span>総括</h2>
     <div class="card">
       <p class="key">{{ summary.key }}</p>
       <p>{{ summary.body }}</p>
@@ -139,7 +142,7 @@ footer{margin-top:48px;border-top:1px solid var(--grid);padding-top:18px;color:v
   </section>
 
   <section id="method">
-    <h2><span class="no">10</span>分析過程と検証・逆因果</h2>
+    <h2><span class="no">13</span>分析過程と検証・逆因果</h2>
     <p class="lead">読者が考察を後から検証・反証できるよう、読みの組み立て方と逆因果・選択バイアスの可能性を明記します。</p>
     <div class="card neutral">
       <p class="key">{{ method.key }}</p>
@@ -152,7 +155,7 @@ footer{margin-top:48px;border-top:1px solid var(--grid);padding-top:18px;color:v
   </section>
 
   <section id="evidence">
-    <h2><span class="no">11</span>根拠と保留事項</h2>
+    <h2><span class="no">14</span>根拠と保留事項</h2>
     <div class="card">
       <p>{{ evidence.body }}</p>
     </div>

@@ -595,7 +595,7 @@ def render_chapters(bundle: AnalysisBundle, project_root: Path) -> None:
     else:
         plane_result = "相性マップに十分な標本がありませんでした。"
     c_style += block(
-        "相手の4スタイルを2軸平面に配置し、代表1スタイルへ割り当てず複合的な相手傾向のまま散布します。表は相手をOpener/Inf DS優位とStride/Plonk優位の4分類に分けます。",
+        "点は4スタイル値を2軸に要約した位置です。自分の平均位置と相手位置を同じ平面に置き、各マッチを勝敗で色分けしています。表は相手位置の4分類ごとに、自分の勝率と期待超過を示します。",
         plane_result,
         "緑（勝ち）が集まる領域と赤（負け）が集まる領域、表の期待超過を併せると、どの相手スタイルに強い・弱いかを読めます。",
         "スタイル値は派生指標で、実際の開幕選択や意思決定の直接観測ではありません。点の少ない領域は勝率のブレが大きくなります。",
@@ -633,7 +633,7 @@ def render_chapters(bundle: AnalysisBundle, project_root: Path) -> None:
 
     # 8 ライバル ─ 遭遇回数と対戦結果（新章）
     rivals = s.get("rivals", [])
-    crv = chapter_header(8, "ライバル ─ 遭遇回数と対戦結果", "よく対戦した相手を遭遇回数順に並べ、勝敗の結果を確認します。相手名は既定で匿名表示です。")
+    crv = chapter_header(8, "ライバル ─ 遭遇回数と対戦結果", "よく対戦した相手をプレイヤーIDで並べ、勝敗の結果を確認します。")
     crv += fig("27_rivals.png", "ライバル（遭遇回数Top10）")
     if rivals:
         crv += table(
@@ -643,10 +643,10 @@ def render_chapters(bundle: AnalysisBundle, project_root: Path) -> None:
         )
     most = rivals[0] if rivals else None
     crv += block(
-        "対戦回数が多い相手から順に、遭遇回数・勝敗・勝率・最終対戦日を示します。相手名は既定で匿名（ライバルA, B, …）です。",
+        "対戦回数が多い相手から順に、プレイヤーID・遭遇回数・勝敗・勝率・最終対戦日を示します。",
         (f"最も多く対戦した相手とは{most['n']}回（{most['wins']}勝{most['losses']}敗・{pct(most['win_rate'])}）です。" if most else "対戦相手別の集計ができませんでした。"),
         "遭遇回数が多く勝率が低い相手は苦手、高い相手は得意の目安です。回数が少ない相手の勝率は振れが大きくなります。",
-        "対戦相手名は個人情報です。既定は匿名表示で、実名表示はレポート作成時のオプション（-ShowOpponentNames）で切り替えます。共有時は匿名のまま扱うことを推奨します。",
+        "相手表示はTETR.IOのプレイヤーIDです。現実の氏名ではありません。",
         confidence(most["n"] if most else 0, None),
     )
     (chapters / "08_c8.html").write_text(crv, encoding="utf-8")

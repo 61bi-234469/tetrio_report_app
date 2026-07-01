@@ -52,6 +52,31 @@ def normalize_regular(section: dict) -> dict:
     }
 
 
+def normalize_replays(section: dict) -> dict:
+    rows = []
+    for row in section.get("rows", []):
+        if not isinstance(row, dict):
+            continue
+        condition = text_or_dash(row.get("condition"))
+        viewpoint = text_or_dash(row.get("viewpoint"))
+        if condition == "-" and viewpoint == "-":
+            continue
+        rows.append(
+            {
+                "priority": text_or_dash(row.get("priority")),
+                "condition": condition,
+                "viewpoint": viewpoint,
+            }
+        )
+    if not rows:
+        rows.append({"priority": "-", "condition": "-", "viewpoint": "-"})
+    return {
+        "key": text_or_dash(section.get("key")),
+        "rows": rows,
+        "summary": text_or_dash(section.get("summary")),
+    }
+
+
 def build_context(text: dict, report_data: dict) -> dict:
     meta = text.get("_meta", {}) if isinstance(text.get("_meta"), dict) else {}
     return {
@@ -72,6 +97,7 @@ def build_context(text: dict, report_data: dict) -> dict:
         "comeback": normalize_regular(text.get("comeback", {})),
         "round_time": normalize_regular(text.get("round_time", {})),
         "session_flow": normalize_regular(text.get("session_flow", {})),
+        "replays": normalize_replays(text.get("replays", {})),
         "summary": {
             "key": text_or_dash(text.get("summary", {}).get("key")),
             "body": text_or_dash(text.get("summary", {}).get("body")),

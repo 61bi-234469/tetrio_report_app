@@ -47,6 +47,7 @@ REGULAR_SECTION_IDS = [
 
 SECTION_IDS = [
     *REGULAR_SECTION_IDS,
+    "replays",
     "summary",
     "method",
     "evidence",
@@ -67,6 +68,7 @@ DATA_MAP_LEGACY = """### データマップ（添付JSONの主な集計項目）
 - 逆転・ビハインド展開: `comeback`（第1ラウンド勝敗別、最大ビハインド別、逆転件数）
 - ラウンド展開とマッチ時間: `duration_bins`・`duration_by_result`（決着時間別）
 - 連戦の流れ: `streaks`（連勝後・連敗後・3連敗以降。すべてマッチ単位）、`streak_states`（段階別の勝率・期待超過・能力指標差）、`session_positions`、`session_decay`
+- 次に見るべきリプレイ条件: 上記各章の勝率差・期待超過・能力差が分かれる区分
 - セッション定義: `session_definition`（前マッチ完了直後から次マッチ開始まで10分以内なら同一セッション。マッチ完了時刻はラウンド時間から推定）
 - セッション内のマッチ位置: `session_positions`（1マッチ目〜11マッチ目以降。位置はマッチ単位）
 - セッション継続傾向: `session_dynamics`（勝ち後／負け後の継続率、セッションの終わり方、セッション長別の勝率。負け後の継続率が勝ち後より高ければ「負けるほど粘る」、逆なら「勝てているから続ける」傾向。継続率はデータ末尾の打ち切りマッチを除外済み）
@@ -120,6 +122,30 @@ def section_schema_regular() -> dict:
 def build_schema() -> dict:
     regular = section_schema_regular()
     properties = {sid: regular for sid in REGULAR_SECTION_IDS}
+    properties["replays"] = {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["key", "rows", "summary"],
+        "properties": {
+            "key": {"type": "string", "minLength": 1, "maxLength": 120},
+            "rows": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 6,
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["priority", "condition", "viewpoint"],
+                    "properties": {
+                        "priority": {"type": "string", "minLength": 1, "maxLength": 10},
+                        "condition": {"type": "string", "minLength": 1},
+                        "viewpoint": {"type": "string", "minLength": 1},
+                    },
+                },
+            },
+            "summary": {"type": "string", "minLength": 1},
+        },
+    }
     properties["summary"] = {
         "type": "object",
         "additionalProperties": False,
@@ -207,6 +233,17 @@ def schema_example() -> str:
         "comeback": regular_example,
         "round_time": regular_example,
         "session_flow": regular_example,
+        "replays": {
+            "key": "勝率差が分かれている局面から優先して確認します。",
+            "rows": [
+                {
+                    "priority": "高",
+                    "condition": "相手マッチポイントのラウンド",
+                    "viewpoint": "受けが崩れてから攻撃へ寄せていないかを確認します。",
+                }
+            ],
+            "summary": "添付JSONに区分がある条件だけを候補にしています。",
+        },
         "summary": {
             "key": "勝ち筋は攻撃面の優位を結果へつなげる展開です。",
             "body": "全体を3〜5文でまとめます。",
@@ -258,6 +295,7 @@ def build_agent_prompt(reasoning_level: str, out_dir: Path) -> str:
     lines.append("各フィールドの文章量・分析密度は、上記のチャット用プロンプトでHTML本文へ直接書く場合と同じレベルにします。")
     lines.append("")
     lines.append("- 通常節（overview / growth_stability / capability / win_factors / style_matchup / opponent_expectation / rivals / clutch / comeback / round_time / session_flow）: `key`、`bullets`（3〜5項目）、`summary`。")
+    lines.append("- `replays`: `key`、`rows`（priority / condition / viewpoint）、`summary`。")
     lines.append("- `summary`: `key`、`body`（3〜5文）。")
     lines.append("- `method`: `key`、`bullets`（主要な読み、逆因果、選択バイアス、数値だけでは判別できない要素）。")
     lines.append("- `evidence`: `body`（マッチ数、ラウンド数、対象期間、保留事項）。")

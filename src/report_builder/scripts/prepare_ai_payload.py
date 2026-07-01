@@ -65,7 +65,16 @@ def main() -> None:
         (PROJECT_ROOT / "cache" / "chapter_index.json").read_text(encoding="utf-8")
     )
 
-    selected = set(args.chapters or [entry["number"] for entry in index])
+    available = {entry["number"] for entry in index}
+    selected = set(args.chapters or available)
+    missing = sorted(selected - available)
+    if missing:
+        available_label = ", ".join(str(x) for x in sorted(available))
+        missing_label = ", ".join(str(x) for x in missing)
+        raise SystemExit(
+            f"Unknown or inactive chapter(s): {missing_label}. "
+            f"Available chapters: {available_label}"
+        )
     payload = {
         "report": {
             "title": report["title"],

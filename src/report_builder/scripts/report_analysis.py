@@ -48,6 +48,21 @@ BASE_METRICS = {
     "Area": "Area",
     "Est. TR": EST_TR_COLUMN,
 }
+ABILITY_METRIC_COLUMNS = [
+    ("APM", "apm"),
+    ("PPS", "pps"),
+    ("VS", "vs"),
+    ("APP", "APP"),
+    ("DS/Second", "DS/Second"),
+    ("DS/Piece", "DS/Piece"),
+    ("APP+DS/Piece", "APP+DS/Piece"),
+    ("VS/APM", "VS/APM"),
+    ("Cheese Index", "Cheese Index"),
+    ("Garbage Eff.", "Garbage Effi."),
+    ("Area", "Area"),
+    ("Est. TR", EST_TR_COLUMN),
+]
+ABILITY_METRICS = [label for label, _ in ABILITY_METRIC_COLUMNS]
 MODEL_METRICS = ["APM", "PPS", "VS", "APP", "DS/Piece", "Garbage Eff.", "Area", "VS/APM"]
 OPPONENT_COLUMN = {
     "apm": "opponent_apm", "pps": "opponent_pps", "vs": "opponent_vs",
@@ -646,10 +661,7 @@ def analyze_tiebreaks(rounds: pd.DataFrame, matches: pd.DataFrame) -> tuple[pd.D
             "max_lead_before_final": max_lead,
             "final_lifetime_s": final.get("lifetime_s", np.nan),
         }
-        for label, col in {
-            "APM": "apm", "PPS": "pps", "VS": "vs", "APP": "APP",
-            "DS/Piece": "DS/Piece", "Garbage Eff.": "Garbage Effi.", "Area": "Area",
-        }.items():
+        for label, col in ABILITY_METRIC_COLUMNS:
             row[f"final_{label}"] = final.get(col, np.nan)
             row[f"prior_{label}"] = previous[col].mean() if col in previous else np.nan
             row[f"change_{label}"] = row[f"final_{label}"] - row[f"prior_{label}"]
@@ -698,7 +710,7 @@ def analyze_tiebreaks(rounds: pd.DataFrame, matches: pd.DataFrame) -> tuple[pd.D
         "routes": route_summary,
         "final_changes": {
             label: float(tb[f"change_{label}"].mean())
-            for label in ["APM", "PPS", "VS", "APP", "DS/Piece", "Garbage Eff.", "Area"]
+            for label in ABILITY_METRICS
         },
     }
     return tb, summary
@@ -982,7 +994,7 @@ def analyze_csv(
     recent = completed.tail(n_window)
     growth = {}
     stability = {}
-    growth_metric_cols = {"APM": "apm", "PPS": "pps", "VS": "vs", "APP": "APP", "DS/S": "DS/Second", "DS/P": "DS/Piece", "GbE": "Garbage Effi.", "Area": "Area"}
+    growth_metric_cols = dict(ABILITY_METRIC_COLUMNS)
     for label, col in growth_metric_cols.items():
         e, r = float(early[col].mean()), float(recent[col].mean())
         growth[label] = {
@@ -1014,11 +1026,7 @@ def analyze_csv(
         growth_windows.append(row)
 
     effect_sizes = []
-    effect_metric_cols = {
-        "APM": "apm", "PPS": "pps", "VS": "vs", "APP": "APP",
-        "DS/S": "DS/Second", "DS/P": "DS/Piece", "GbE": "Garbage Effi.",
-        "Area": "Area", "VS/APM": "VS/APM",
-    }
+    effect_metric_cols = dict(ABILITY_METRIC_COLUMNS)
     effect_metric_cols.update({style: style for style in STYLE_ORDER if style in completed})
     for label, col in effect_metric_cols.items():
         effect_sizes.append({
@@ -1027,7 +1035,7 @@ def analyze_csv(
             "win_mean": float(completed.loc[completed["won"], col].mean()),
             "loss_mean": float(completed.loc[~completed["won"], col].mean()),
         })
-    effect_sizes.sort(key=lambda x: abs(x["d"]) if np.isfinite(x["d"]) else -1, reverse=True)
+    effect_sizes.sort(key=lambda x: x["d"] if np.isfinite(x["d"]) else -math.inf, reverse=True)
 
     def _expected_group(g: pd.DataFrame) -> dict[str, Any]:
         ge = g[g["expected_win"].notna()]
@@ -1063,9 +1071,9 @@ def analyze_csv(
     # Δ指標の分位ビン。
     delta_metric_bins = {}
     for metric_label, delta_col in {
-        "VS": "delta_VS",
-        "PPS": "delta_PPS",
         "APM": "delta_APM",
+        "PPS": "delta_PPS",
+        "VS": "delta_VS",
         "Area": "delta_Area",
     }.items():
         bins = []
@@ -1311,15 +1319,13 @@ def analyze_csv(
     duration_rounds["duration_bin"] = pd.cut(duration_rounds["lifetime_s"], bins=duration_edges, labels=duration_labels, right=False)
     # ラウンド単位の能力差分（自分−相手）。表示名はGbEに統一する。
     duration_delta_pairs = {
-        "delta_APM": ("apm", "opponent_apm"),
-        "delta_PPS": ("pps", "opponent_pps"),
-        "delta_VS": ("vs", "opponent_vs"),
-        "delta_APP": ("APP", "opponent_APP"),
-        "delta_DS/S": ("DS/Second", "opponent_DS/Second"),
-        "delta_DS/P": ("DS/Piece", "opponent_DS/Piece"),
-        "delta_GbE": ("Garbage Effi.", "opponent_Garbage Effi."),
-        "delta_Area": ("Area", "opponent_Area"),
+        f"delta_{label}": (col, OPPONENT_COLUMN.get(col))
+        for label, col in ABILITY_METRIC_COLUMNS
     }
+    duration_delta_pairs.update({
+        f"delta_{style}": (style, f"opponent_{style}")
+        for style in STYLE_ORDER
+    })
     duration_bins = []
     for label, g in duration_rounds.groupby("duration_bin", observed=False):
         if len(g):

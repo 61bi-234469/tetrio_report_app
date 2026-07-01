@@ -17,7 +17,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("chapter", type=int, choices=range(1, 13))
+    parser.add_argument("chapter", type=int)
     parser.add_argument("input", type=Path)
     args = parser.parse_args()
 
@@ -27,7 +27,13 @@ def main() -> None:
     index = json.loads(
         (PROJECT_ROOT / "cache" / "chapter_index.json").read_text(encoding="utf-8")
     )
-    entry = next(x for x in index if x["number"] == args.chapter)
+    entry = next((x for x in index if x["number"] == args.chapter), None)
+    if entry is None:
+        available = ", ".join(str(x["number"]) for x in index)
+        raise SystemExit(
+            f"Unknown or inactive chapter: {args.chapter}. "
+            f"Available chapters: {available}"
+        )
     target = PROJECT_ROOT / entry["file"]
 
     new_html = args.input.read_text(encoding="utf-8")

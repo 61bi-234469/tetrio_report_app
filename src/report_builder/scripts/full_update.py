@@ -16,14 +16,14 @@ os.environ.setdefault("MPLCONFIGDIR", str(PROJECT_ROOT / "cache" / "matplotlib")
 
 from charts import generate_all_charts
 from input_normalizer import normalize_to_round_csv
-from render_report import render_all
+from render_report import ACTIVE_CHAPTER_NUMBERS, render_all
 from report_analysis import analyze_csv, apply_opponent_display, file_sha256, write_analysis_outputs
 
 EXPECTED_CHARTS = [
     "01_tr_history.png", "02_metric_distributions.png", "03_capability_radar.png",
     "04_playstyle_radar.png", "20_playstyle_trend.png", "05_monthly_normalized_trends.png",
-    "06_stability_windows.png", "08_relative_effect_sizes.png", "09_delta_vs_winrate.png",
-    "09_delta_pps_winrate.png", "09_delta_apm_winrate.png", "09_delta_area_winrate.png",
+    "07_tr_monthly_stability.png", "08_relative_effect_sizes.png", "09_delta_apm_winrate.png",
+    "09_delta_pps_winrate.png", "09_delta_vs_winrate.png", "09_delta_area_winrate.png",
     "10_apm_vs_dominance_scatter.png", "11_pps_vs_dominance_scatter.png",
     "12_tr_gap_expected_vs_actual.png", "13_tr_drawdown.png",
     "14_streak_distribution.png", "15_tiebreak_analysis.png",
@@ -137,7 +137,8 @@ def main() -> None:
     print(f"2/5 {len(EXPECTED_CHARTS)}グラフ生成...")
     generate_all_charts(bundle, charts_dir)
 
-    print("3/5 12章・付録・KPI生成...")
+    expected_chapters = len(ACTIVE_CHAPTER_NUMBERS)
+    print(f"3/5 {expected_chapters}章・付録・KPI生成...")
     render_all(bundle, PROJECT_ROOT, args.player)
 
     print("4/5 自己完結HTML生成...")
@@ -178,7 +179,7 @@ def main() -> None:
         "ai_payload_bytes": (cache_dir / "ai_analysis_payload.json").stat().st_size,
     }
     state_path.write_text(json.dumps(validation, ensure_ascii=False, indent=2), encoding="utf-8")
-    if missing or validation["chapter_count"] != 12 or validation["appendix_count"] != 3 or validation["unresolved_jinja"]:
+    if missing or validation["chapter_count"] != expected_chapters or validation["appendix_count"] != 3 or validation["unresolved_jinja"]:
         raise SystemExit(f"Validation failed: {json.dumps(validation, ensure_ascii=False)}")
     if not args.external_images and validation["embedded_images"] != len(EXPECTED_CHARTS):
         raise SystemExit(f"Expected {len(EXPECTED_CHARTS)} embedded images, got {validation['embedded_images']}")

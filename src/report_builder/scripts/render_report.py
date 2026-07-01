@@ -13,7 +13,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from report_analysis import AnalysisBundle, STYLE_ORDER
+from report_analysis import ABILITY_METRICS, AnalysisBundle, STYLE_ORDER
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 GENERATED_ROOT = Path("cache") / "generated"
@@ -35,6 +35,7 @@ CHAPTER_TITLES = [
     "ラウンド展開とマッチ時間",
     "連戦の流れとセッション内のマッチ位置",
 ]
+ACTIVE_CHAPTER_NUMBERS = [1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
 # 部（大セクション）。各タプルは (ローマ数字, 部名, 開始章番号)。
 # 部はその開始章から次の部の開始章直前までを範囲とし、TOC・本文の部見出しで共有する。
 PARTS = [
@@ -60,7 +61,10 @@ TERM_TITLES = {
     "VS": "Versus score。攻撃・防御を含む総合圧力の目安。",
     "APP": "Attack Per Piece。1ピースあたりの攻撃効率。",
     "DS/S": "Downstack per Second。1秒あたりの掘り量の目安。",
+    "DS/Second": "Downstack per Second。1秒あたりの掘り量の目安。",
     "DS/P": "Downstack per Piece。1ピースあたりの掘り効率。",
+    "DS/Piece": "Downstack per Piece。1ピースあたりの掘り効率。",
+    "APP+DS/Piece": "APPとDS/Pieceを足した攻撃・掘り効率の合成指標。",
     "GbE": "Garbage Efficiency。送ったお邪魔の効率の目安。",
     "Garbage Eff.": "Garbage Efficiency。送ったお邪魔の効率の目安。",
     "VS/APM": "攻撃量に対する総合圧力。高いほど守備・相殺込みの圧が出ている目安。",
@@ -87,6 +91,27 @@ DIRECTION = {
     "Cheese Index": "低めが安定寄り",
     "CV": "↓良い",
 }
+
+METRIC_DIGITS = {
+    "PPS": 2,
+    "APP": 3,
+    "DS/Second": 3,
+    "DS/Piece": 3,
+    "APP+DS/Piece": 3,
+    "VS/APM": 3,
+    "Cheese Index": 2,
+    "Garbage Eff.": 3,
+    "Est. TR": 1,
+    "Opener": 2,
+    "Stride": 2,
+    "Inf DS": 2,
+    "Plonk": 2,
+}
+
+
+def metric_fmt(label: str, value: Any, signed: bool = False) -> str:
+    digits = METRIC_DIGITS.get(label, 1)
+    return sgn(value, digits) if signed else nfmt(value, digits)
 
 
 def nfmt(v: Any, digits: int = 1, comma: bool = False, default: str = "—") -> str:
@@ -178,7 +203,7 @@ def header_html(label: str, show_direction: bool = True) -> str:
     title = TERM_TITLES.get(raw)
     base = term(raw) if title else escape(raw)
     direction = DIRECTION.get(raw)
-    if raw in {"APM", "PPS", "VS", "APP", "DS/S", "DS/P", "GbE", "Garbage Eff.", "VS/APM", "Area", "Est. TR", "AUC", "勝率", "期待超過", "TR増減", "ピーク", "現在TR", "ピークTR"}:
+    if raw in {"APM", "PPS", "VS", "APP", "DS/S", "DS/Second", "DS/P", "DS/Piece", "APP+DS/Piece", "GbE", "Garbage Eff.", "VS/APM", "Cheese Index", "Area", "Est. TR", "AUC", "勝率", "期待超過", "TR増減", "ピーク", "現在TR", "ピークTR"}:
         direction = direction or "↑良い"
     if show_direction and direction:
         base += f' <span class="dir">{escape(direction)}</span>'
@@ -278,6 +303,36 @@ def selected_records_cards_html(records: list[dict[str, Any]]) -> str:
     return f'<div class="kpis">{"".join(cards)}</div>'
 
 
+def selected_record_kpis(records: list[dict[str, Any]]) -> list[dict[str, str]]:
+    preferred = [
+        "最高ランク",
+        "勝利した相手最高TR",
+        "タイブレーク勝率",
+        "最長連勝",
+        "最長連敗",
+    ]
+    by_name = {r["name"]: r for r in records}
+    out = []
+    for name in preferred:
+        record = by_name.get(name)
+        if not record:
+            continue
+        note = "／".join(
+            part
+            for part in [
+                datefmt(record.get("date")),
+                record.get("scope") or "",
+            ]
+            if part and part != "—"
+        )
+        out.append({
+            "label": record["name"],
+            "value": record_value_cell(record),
+            "note": note or escape(record.get("unit") or ""),
+        })
+    return out
+
+
 def advantage_rows(rows: list[dict[str, Any]]) -> list[list[Any]]:
     return [
         [escape(r["label"]), r["n"], pct(r.get("actual")), pct(r.get("expected")), pp(r.get("excess"))]
@@ -349,57 +404,55 @@ def render_chapters(bundle: AnalysisBundle, project_root: Path) -> None:
     )
     (chapters / "01_c1.html").write_text(c1, encoding="utf-8")
 
-    # 2 パーソナルレコード（本文は厳選カードのみ、全件は付録B）
-    records = s.get("records", [])
-    rec_by_name = {r["name"]: r for r in records}
-    cpr = chapter_header(2, "パーソナルレコード", "対象期間で更新した自己ベストから、主要な記録だけを確認します。全記録は付録Bにまとめています。")
-    cpr += "<h3>パーソナルレコード（厳選）</h3>" + selected_records_cards_html(records)
-    peak_rec = rec_by_name.get("最高TR", {})
-    rank_rec = rec_by_name.get("最高ランク", {})
-    beat_rec = rec_by_name.get("勝利した相手最高TR", {})
-    win_streak_rec = rec_by_name.get("最長連勝", {})
-    rec_parts = []
-    if peak_rec:
-        rec_parts.append(f"最高TRは{nfmt(peak_rec.get('value'),0,True)}（{datefmt(peak_rec.get('date'))}）")
-    if rank_rec:
-        rec_parts.append(f"最高ランクは{escape(str(rank_rec.get('value','')).upper())}")
-    if beat_rec:
-        rec_parts.append(f"勝利した相手の最高TRは{nfmt(beat_rec.get('value'),0,True)}")
-    if win_streak_rec:
-        rec_parts.append(f"最長連勝は{nfmt(win_streak_rec.get('value'),0)}マッチ")
-    rec_result = ("、".join(rec_parts) + "です。") if rec_parts else "記録を集計できませんでした。"
-    cpr += block(
-        "対象期間で更新した自己ベストから、TR・ランク・対戦相手強度・連勝連敗・単マッチ指標の代表値を抜粋しています。",
-        rec_result,
-        "記録は単発の最高値です。継続的な実力は第3章以降の平均・推移で確認します。",
-        "単マッチ・単ラウンドの詳細記録、期間窓、注意欄は付録Bに置いています。",
-        ("中", "mid"),
-    )
-    (chapters / "02_c2.html").write_text(cpr, encoding="utf-8")
+    # 2章は廃止。テンプレート互換のため空ファイルだけ生成する。
+    (chapters / "02_c2.html").write_text("", encoding="utf-8")
 
     # 3 成長推移と安定性（旧2章）
     growth = s["growth"]
     growth_windows = s.get("growth_windows", [])
-    growth_metrics = ["APM", "PPS", "VS", "APP", "DS/S", "DS/P", "GbE", "Area"]
+    growth_metrics = ABILITY_METRICS
     growth_rows = [
-        [m] + [nfmt(w.get(m), 3 if m in ["APP","DS/S","DS/P","DS/Piece","GbE"] else (2 if m == "PPS" else 1)) for w in growth_windows]
+        [m] + [metric_fmt(m, w.get(m)) for w in growth_windows]
         for m in growth_metrics
     ]
-    best_growth = max(growth.items(), key=lambda x: x[1]["growth_rate"] if x[1]["growth_rate"] is not None else -999)
-    st = s["stability"]
-    cv_improvements = sorted(((m, v["early_cv"] - v["recent_cv"]) for m,v in st.items()), key=lambda x:x[1], reverse=True)
-    best_cv = cv_improvements[0]
+    best_growth = max(
+        growth.items(),
+        key=lambda x: x[1]["growth_rate"] if x[1]["growth_rate"] is not None and np.isfinite(x[1]["growth_rate"]) else -999,
+    )
+    tr_monthly_result = "月次TR分位帯を集計できませんでした。"
+    tr_monthly = bundle.matches.dropna(subset=["played_at_jst", "tr_after"]).copy()
+    if len(tr_monthly):
+        played_at = pd.to_datetime(tr_monthly["played_at_jst"], errors="coerce")
+        if played_at.dt.tz is not None:
+            played_at = played_at.dt.tz_convert("Asia/Tokyo").dt.tz_localize(None)
+        tr_monthly["played_at_jst"] = played_at
+        tr_monthly = tr_monthly.dropna(subset=["played_at_jst", "tr_after"])
+        tr_monthly["month"] = tr_monthly["played_at_jst"].dt.to_period("M").dt.to_timestamp()
+        tr_monthly_band = (
+            tr_monthly.groupby("month")["tr_after"]
+            .agg(
+                p10=lambda v: float(v.quantile(0.1)),
+                p50=lambda v: float(v.quantile(0.5)),
+                p90=lambda v: float(v.quantile(0.9)),
+                n="count",
+            )
+            .reset_index()
+        )
+        if len(tr_monthly_band):
+            latest_tr_band = tr_monthly_band.iloc[-1]
+            tr_monthly_result = (
+                f"直近月のP50は{nfmt(latest_tr_band['p50'],0,True)}、"
+                f"P10-P90幅は{nfmt(latest_tr_band['p90'] - latest_tr_band['p10'],0,True)}です。"
+            )
     c2 = chapter_header(3, "成長推移と安定性", "マッチ日時ベースの指標推移と、直近10マッチ・50マッチ・100マッチ・全期間の指標平均を確認します。")
     c2 += fig("05_monthly_normalized_trends.png", "指標推移")
     c2 += block(
-        "横軸は第1章のTR推移と同じJSTのマッチ日時です。各指標の初期ローリング平均を100として、マッチ日時に沿った相対変化を重ねています。APM・PPS・VS・APP・DS/S・DS/P・GbE・Areaを同一基準で方向比較するための正規化です。",
+        "横軸は第1章のTR推移と同じJSTのマッチ日時です。各指標の初期ローリング平均を100として、APM・PPS・VS・VS/APM、DS系、APP・APP+DS/Piece・Garbage Eff.、Cheese Index、Area・Est. TRの5段に分けて重ねています。",
         f"初期から直近で最も伸びた指標は{best_growth[0]}で{pct(best_growth[1]['growth_rate'],1,True)}です。APMは{nfmt(growth['APM']['early'],1)}→{nfmt(growth['APM']['recent'],1)}、PPSは{nfmt(growth['PPS']['early'],2)}→{nfmt(growth['PPS']['recent'],2)}、APPは{nfmt(growth['APP']['early'],3)}→{nfmt(growth['APP']['recent'],3)}です。",
-        "速度（APM・PPS）と効率（APP・GbE・DS/S）の線が同じ向きに動くかどうかで、高速化中心の変化か総合的な変化かを区別できます。",
+        "速度（APM・PPS）と効率（APP・Garbage Eff.・DS/Second）の線が同じ向きに動くかどうかで、高速化中心の変化か総合的な変化かを区別できます。",
         "ローリング平均には相手層やプレー頻度の変化が含まれます。正規化線の高さで絶対値は比較できません。表の直近窓別平均と正規化推移、複数指標の一致度を併せて確認します。",
         ("高", "hi"),
     )
-    c2 += "<h3>主要指標の直近窓別平均</h3>" + table(["指標"] + [w["label"] for w in growth_windows], growth_rows)
-    c2 += fig("06_stability_windows.png", "Stability by metric")
     c2 += "<h3>4プレイスタイルの推移</h3>" + fig("20_playstyle_trend.png", "4プレイスタイル推移")
     c2 += block(
         "横軸はJSTのマッチ日時、縦軸は自分の各スタイル傾向のマッチ単位ローリング平均です。Opener・Stride・Inf DS・Plonkの4本を重ねています。",
@@ -408,12 +461,33 @@ def render_chapters(bundle: AnalysisBundle, project_root: Path) -> None:
         "ローリング平均には相手層やプレー頻度の変化が含まれます。短期の上下より、複数マッチにわたる持続的な変化に注目します。",
         ("中", "mid"),
     )
+    c2 += "<h3>主要指標の直近窓別平均</h3>" + table(["指標"] + [w["label"] for w in growth_windows], growth_rows, min_width=760)
+    c2 += "<h3>TRの安定性・上振れ・下振れ</h3>" + grain("月単位。各月のマッチ後TRをP10・P50・P90で見ます。") + fig("07_tr_monthly_stability.png", "TRの安定性・上振れ・下振れ")
+    c2 += block(
+        "P50は月内の通常値、P90は上振れ側、P10は下振れ側です。P10-P90の帯が狭い月はTRが安定し、広い月は上下の振れ幅が大きい状態です。",
+        tr_monthly_result,
+        "P50の傾きで基準TRの推移、P90の伸びで到達上限、P10の底上げで崩れにくさを確認できます。",
+        "月内マッチ数が少ない月は分位点が単発結果に寄ります。TRは相手強度と内部レーティングの影響を受けるため、能力指標の推移と併読します。",
+        ("中", "mid"),
+    )
+    c2 += "<h3>TRドローダウン</h3>" + grain("マッチ単位。各マッチ後TRが、それまでのピークからどれだけ下がったかを見ます。") + fig("13_tr_drawdown.png", "TRドローダウン")
+    c2 += block(
+        "0はその時点までの最高TR、負値はピークからの下落幅です。",
+        f"最大ドローダウンは{nfmt(kpi['max_drawdown'],0,True)}で、底は{datefmt(kpi['max_drawdown_date'])}でした。現在TRは{nfmt(kpi['current_tr'],0,True)}です。",
+        "下落幅と能力指標を併読すると、スタッツも落ちたコンディション型か、能力は維持で結果だけ下振れた分散型かを区別できます。",
+        "回復までのマッチ数はプレー間隔に左右され、暦日だけでは原因を特定できません。TRが水面下でも、期待超過や能力平均が維持されているかを同じ期間で確認できます。",
+        ("高", "hi"),
+    )
     (chapters / "03_c3.html").write_text(c2, encoding="utf-8")
 
     # 3 能力バランス（レーダー/スタイルは直近100マッチ・マッチ単位）
     metrics = s["metrics"]
     mr = s["metrics_recent"]
-    metric_rows = [[m, nfmt(v["self"], 3 if m in ["APP","DS/Second","DS/Piece","Garbage Eff.","VS/APM"] else 1), nfmt(v["opponent"], 3 if m in ["APP","DS/Second","DS/Piece","Garbage Eff.","VS/APM"] else 1), nfmt(v["difference"], 3 if m in ["APP","DS/Second","DS/Piece","Garbage Eff.","VS/APM"] else 1)] for m, v in mr.items()]
+    metric_rows = [
+        [m, metric_fmt(m, mr[m]["self"]), metric_fmt(m, mr[m]["opponent"]), metric_fmt(m, mr[m]["difference"])]
+        for m in ABILITY_METRICS
+        if m in mr
+    ]
     rec_adv = sorted(mr.items(), key=lambda x: x[1]["difference"] if x[1]["difference"] is not None else -999, reverse=True)
     strongest = rec_adv[0][0]
     c3 = chapter_header(4, "能力バランス", "主要指標の分布と、相手平均に対する能力バランスを確認します。レーダーとスタイルは直近100マッチをマッチ単位で集計します。")
@@ -460,16 +534,16 @@ def render_chapters(bundle: AnalysisBundle, project_root: Path) -> None:
     c4 += fig("08_relative_effect_sizes.png", "効果量")
     c4 += block(
         "Cohen's dは勝利群平均−敗北群平均を共通標準偏差で割った値です。正なら勝利時に高い傾向を示します。killsは結果と循環するため除外しています。",
-        f"絶対値が最大の指標は{top_effect['metric']}でd={nfmt(top_effect['d'],2)}。勝利時平均{nfmt(top_effect['win_mean'],3)}、敗北時平均{nfmt(top_effect['loss_mean'],3)}です。",
+        f"勝利時に高い側の先頭は{top_effect['metric']}でd={nfmt(top_effect['d'],2)}。勝利時平均{nfmt(top_effect['win_mean'],3)}、敗北時平均{nfmt(top_effect['loss_mean'],3)}です。",
         "効果量は単位に依存せず比較できます。ここで示すのは因果的な勝因ではなく、勝敗と同時に起きた関連です。",
         "マッチスタッツは勝敗後に確定し、長引いたマッチほど値の意味が変わる逆因果もあります。効果量・相対優位・再現性を併せて見ると、探索的な関連の強さを比較できます。",
         ("高", "hi"),
     )
     c4 += "<h3>相対差と勝率（マッチ単位）</h3>" + grain("マッチ単位。自分−相手の差を分位ビンに分け、各ビンの勝率を見ます。")
     c4 += (
-        fig("09_delta_vs_winrate.png", "相対VS差と勝率")
+        fig("09_delta_apm_winrate.png", "相対APM差と勝率")
         + fig("09_delta_pps_winrate.png", "相対PPS差と勝率")
-        + fig("09_delta_apm_winrate.png", "相対APM差と勝率")
+        + fig("09_delta_vs_winrate.png", "相対VS差と勝率")
         + fig("09_delta_area_winrate.png", "相対Area差と勝率")
     )
     c4 += block(
@@ -640,7 +714,10 @@ def render_chapters(bundle: AnalysisBundle, project_root: Path) -> None:
     )
     if tb.get("final_changes"):
         changes = tb["final_changes"]
-        c6 += "<h3>最終ラウンドの能力変化（ラウンド単位）</h3>" + grain("ラウンド単位。同じマッチ内の最終ラウンドと、それ以前のラウンド平均を比べます。") + table(["指標", "最終−それ以前"], [[m, nfmt(v,3 if m in ["APP","DS/Piece","Garbage Eff."] else 1)] for m,v in changes.items()])
+        c6 += "<h3>最終ラウンドの能力変化（ラウンド単位）</h3>" + grain("ラウンド単位。同じマッチ内の最終ラウンドと、それ以前のラウンド平均を比べます。") + table(
+            ["指標", "最終−それ以前"],
+            [[m, metric_fmt(m, changes.get(m), signed=True)] for m in ABILITY_METRICS if m in changes],
+        )
     (chapters / "09_c9.html").write_text(c6, encoding="utf-8")
 
     # 10 逆転・ビハインド展開
@@ -701,15 +778,19 @@ def render_chapters(bundle: AnalysisBundle, project_root: Path) -> None:
         "苦しいラウンドほど長引く逆因果があるため、長時間が敗因とは限りません。勝率が低い時間帯は、隣接帯との連続性も含めて確認します。",
         confidence(worst_duration["n"] if worst_duration else 0, (worst_duration["win_rate"]-0.5) if worst_duration else None),
     )
+    duration_delta_metrics = ABILITY_METRICS + STYLE_ORDER
     delta_rows = [
-        [d["label"], d["n"], nfmt(d.get("delta_VS"),1), nfmt(d.get("delta_APP"),3), nfmt(d.get("delta_DS/P"),3), nfmt(d.get("delta_APM"),1), nfmt(d.get("delta_PPS"),2), nfmt(d.get("delta_GbE"),3)]
+        [d["label"], d["n"]] + [
+            metric_fmt(metric, d.get(f"delta_{metric}"), signed=True)
+            for metric in duration_delta_metrics
+        ]
         for d in duration_filtered
     ]
     c7 += "<h3>ラウンド決着時間帯別の能力差分（ラウンド単位）</h3>" + grain("ラウンド単位。各時間帯に入ったラウンドで、自分と相手の指標差を見ます。") + fig("19_duration_metric_deltas.png", "ラウンド決着時間帯別の能力差分")
     if delta_rows:
-        c7 += table(["時間帯", "標本", "ΔVS", "ΔAPP", "ΔDS/P", "ΔAPM", "ΔPPS", "ΔGbE"], delta_rows, show_direction=False, min_width=720)
+        c7 += table(["時間帯", "標本"] + [f"Δ{metric}" for metric in duration_delta_metrics], delta_rows, show_direction=False, min_width=1900)
     c7 += block(
-        "各時間帯で、自分と相手の能力指標の差（自分−相手）の平均を示します。図はΔVS・ΔAPP・ΔDS/P、表は全指標です。",
+        "各時間帯で、自分と相手の能力指標と4プレイスタイルの差（自分−相手）の平均を示します。図と表はいずれも同じ指標を扱います。",
         "正の差分はその時間帯で相手より優位、負は劣位を表します。時間帯ごとに優劣がどう変わるかを確認します。",
         "短時間帯では速攻型、長時間帯では掘り・効率型の差が出やすく、時間帯ごとに勝敗との結びつきが異なります。",
         "標本n<20の帯は弱い根拠として扱います。差分は相手構成の影響を受けるため、勝率と能力差分の両方を併せて読みます。",
@@ -719,7 +800,7 @@ def render_chapters(bundle: AnalysisBundle, project_root: Path) -> None:
 
     # 12 連戦の流れとセッション内のマッチ位置
     worst_pos = min(positions, key=lambda x:x["excess"]) if positions else None
-    c8 = chapter_header(12, "連戦の流れとセッション内のマッチ位置", "マッチとマッチの間で続く流れを確認します。連勝連敗、前マッチ結果、セッション内のマッチ位置、TRドローダウンをマッチ単位で集計します。")
+    c8 = chapter_header(12, "連戦の流れとセッション内のマッチ位置", "マッチとマッチの間で続く流れを確認します。連勝連敗、前マッチ結果、セッション内のマッチ位置をマッチ単位で集計します。")
     c8 += "<h3>連勝・連敗と前マッチ結果（マッチ単位）</h3>" + grain("マッチ単位。直前までの連勝・連敗段階ごとに、次の1マッチの結果を見ます。") + fig("14_streak_distribution.png", "連勝連敗分布")
     if streak_states:
         c8 += table(
@@ -768,14 +849,6 @@ def render_chapters(bundle: AnalysisBundle, project_root: Path) -> None:
         "終盤の位置で勝率と能力指標が揃って下がるなら疲労・集中低下、勝率だけ下がるなら相手や運の影響が示唆されます。",
         "後半の位置は標本が小さく、長く続いた好調セッションが残る選択バイアスを含みます。指標は先頭位置を100とした相対値のため、絶対水準の比較には元単位を併読します。",
         confidence(decay_low["n"] if decay_low else 0, None),
-    )
-    c8 += "<h3>TRドローダウン</h3>" + grain("マッチ単位。各マッチ後TRが、それまでのピークからどれだけ下がったかを見ます。") + fig("13_tr_drawdown.png", "TRドローダウン")
-    c8 += block(
-        "0はその時点までの最高TR、負値はピークからの下落幅です。",
-        f"最大ドローダウンは{nfmt(kpi['max_drawdown'],0,True)}で、底は{datefmt(kpi['max_drawdown_date'])}でした。現在TRは{nfmt(kpi['current_tr'],0,True)}です。",
-        "下落幅と能力指標を併読すると、スタッツも落ちたコンディション型か、能力は維持で結果だけ下振れた分散型かを区別できます。",
-        "回復までのマッチ数はプレー間隔に左右され、暦日だけでは原因を特定できません。TRが水面下でも、期待超過や能力平均が維持されているかを同じ期間で確認できます。",
-        ("高", "hi"),
     )
     (chapters / "12_c12.html").write_text(c8, encoding="utf-8")
 
@@ -905,12 +978,16 @@ def render_report_data(bundle: AnalysisBundle, project_root: Path, player_name: 
         {"label":"最大ドローダウン", "value":nfmt(kpi["max_drawdown"],0,True), "note":datefmt(kpi["max_drawdown_date"])},
         {"label":f"{recent['label']} 実績勝率", "value":pct(recent["expected_actual"]), "note":f"期待 {pct(recent['expected'])}／{nfmt(recent['excess_wins'],1)}勝分（期待対象{recent['expected_n']}マッチ）"},
     ]
+    kpis.extend(selected_record_kpis(s.get("records", [])))
     toc = '<b>目次</b>'
     for idx, (roman, name, start) in enumerate(PARTS):
         end = PARTS[idx + 1][2] - 1 if idx + 1 < len(PARTS) else len(CHAPTER_TITLES)
+        chapter_numbers = [n for n in range(start, end + 1) if n in ACTIVE_CHAPTER_NUMBERS]
+        if not chapter_numbers:
+            continue
         toc += f'<div class="toc-part">第{roman}部　{escape(name)}</div>'
         toc += f'<ol start="{start}">' + ''.join(
-            f'<li><a href="#c{n}">{CHAPTER_TITLES[n - 1]}</a></li>' for n in range(start, end + 1)
+            f'<li value="{n}"><a href="#c{n}">{CHAPTER_TITLES[n - 1]}</a></li>' for n in chapter_numbers
         ) + '</ol>'
     toc += ('<div class="muted" style="font-size:13px">付録：'
             '<a href="#appendix-monthly">付録A 月別集計</a>　／　'
@@ -944,6 +1021,7 @@ def render_chapter_index(project_root: Path) -> None:
             "file": f"{GENERATED_CHAPTERS.as_posix()}/{i:02d}_c{i}.html",
         }
         for i, title in enumerate(CHAPTER_TITLES, start=1)
+        if i in ACTIVE_CHAPTER_NUMBERS
     ]
     (project_root / "cache").mkdir(parents=True, exist_ok=True)
     (project_root / "cache" / "chapter_index.json").write_text(

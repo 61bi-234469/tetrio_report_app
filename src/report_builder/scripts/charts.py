@@ -12,23 +12,32 @@ from matplotlib import font_manager
 import numpy as np
 import pandas as pd
 
-from report_analysis import AnalysisBundle, STYLE_ORDER, analyze_csv
+from report_analysis import ABILITY_METRIC_COLUMNS, ABILITY_METRICS, AnalysisBundle, STYLE_ORDER, analyze_csv
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 # ローリング平均の窓幅（マッチ数）。トレンド系チャート共通。
 ROLLING_WINDOW = 10
 
-GROWTH_STABILITY_METRICS = [
-    ("APM", "apm", "{:.1f}"),
-    ("PPS", "pps", "{:.2f}"),
-    ("VS", "vs", "{:.1f}"),
-    ("APP", "APP", "{:.3f}"),
-    ("DS/S", "DS/Second", "{:.3f}"),
-    ("DS/P", "DS/Piece", "{:.3f}"),
-    ("GbE", "Garbage Effi.", "{:.3f}"),
-    ("Area", "Area", "{:.1f}"),
-]
+METRIC_COLORS = {
+    "APM": "#d62728",
+    "PPS": "#1f77b4",
+    "VS": "#2ca02c",
+    "APP": "#d62728",
+    "DS/Second": "#7e57c2",
+    "DS/Piece": "#00a6a6",
+    "APP+DS/Piece": "#7c3aed",
+    "VS/APM": "#374151",
+    "Cheese Index": "#eab308",
+    "Garbage Eff.": "#1e3a8a",
+    "Area": "#c026d3",
+    "Est. TR": "#38bdf8",
+}
+METRIC_COLORS.update({
+    "DS/S": METRIC_COLORS["DS/Second"],
+    "DS/P": METRIC_COLORS["DS/Piece"],
+    "GbE": METRIC_COLORS["Garbage Eff."],
+})
 
 
 def set_japanese_font() -> None:
@@ -195,13 +204,24 @@ def chart_tr_history(bundle: AnalysisBundle, out: Path) -> None:
 
 def chart_metric_distributions(bundle: AnalysisBundle, out: Path) -> None:
     m = bundle.matches
-    specs = [("APM", "apm", "opponent_apm"), ("PPS", "pps", "opponent_pps"), ("VS", "vs", "opponent_vs"), ("APP", "APP", "opponent_APP")]
-    fig, axes = plt.subplots(1, 4, figsize=(12.0, 4.2))
-    for ax, (label, own, opp) in zip(axes, specs):
-        data = [m[own].dropna(), m[opp].dropna()]
+    specs = [
+        (label, own, f"opponent_{own}" if own in {"apm", "pps", "vs"} else (
+            "opponent_Garbage Effi." if label == "Garbage Eff." else f"opponent_{own}"
+        ))
+        for label, own in ABILITY_METRIC_COLUMNS
+    ]
+    fig, axes = plt.subplots(4, 3, figsize=(12.4, 11.2))
+    axes_flat = axes.flatten()
+    for ax, (label, own, opp) in zip(axes_flat, specs):
+        data = [
+            pd.to_numeric(m[own], errors="coerce").dropna() if own in m else pd.Series(dtype=float),
+            pd.to_numeric(m[opp], errors="coerce").dropna() if opp in m else pd.Series(dtype=float),
+        ]
         ax.boxplot(data, tick_labels=["自分", "相手"], showfliers=False)
         ax.set_title(label)
         ax.grid(axis="y", alpha=0.25)
+    for ax in axes_flat[len(specs):]:
+        ax.axis("off")
     fig.suptitle("主要指標の分布（マッチ平均）", y=1.02)
     fig.tight_layout()
     save(fig, out / "02_metric_distributions.png")
@@ -315,9 +335,10 @@ def chart_style_trend(bundle: AnalysisBundle, out: Path) -> None:
 
 def chart_effect_sizes(bundle: AnalysisBundle, out: Path) -> None:
     data = [x for x in bundle.summary["effect_sizes"] if x["d"] is not None]
-    data = sorted(data, key=lambda x: x["d"])
-    fig, ax = plt.subplots(figsize=(8.5, 5.0))
+    data = sorted(data, key=lambda x: x["d"] if np.isfinite(x["d"]) else -np.inf, reverse=True)
+    fig, ax = plt.subplots(figsize=(9.0, 7.0))
     ax.barh([x["metric"] for x in data], [x["d"] for x in data])
+    ax.invert_yaxis()
     ax.axvline(0, linewidth=1)
     ax.set_title("勝利群と敗北群の効果量（Cohen's d）")
     ax.set_xlabel("正：勝利時に高い")
@@ -327,9 +348,9 @@ def chart_effect_sizes(bundle: AnalysisBundle, out: Path) -> None:
 
 def chart_delta_vs(bundle: AnalysisBundle, out: Path) -> None:
     specs = [
-        ("VS", "自分VS - 相手VS", "相対VS差と勝率", "09_delta_vs_winrate.png"),
-        ("PPS", "自分PPS - 相手PPS", "相対PPS差と勝率", "09_delta_pps_winrate.png"),
         ("APM", "自分APM - 相手APM", "相対APM差と勝率", "09_delta_apm_winrate.png"),
+        ("PPS", "自分PPS - 相手PPS", "相対PPS差と勝率", "09_delta_pps_winrate.png"),
+        ("VS", "自分VS - 相手VS", "相対VS差と勝率", "09_delta_vs_winrate.png"),
         ("Area", "自分Area - 相手Area", "相対Area差と勝率", "09_delta_area_winrate.png"),
     ]
     all_bins = bundle.summary.get("delta_metric_bins", {"VS": bundle.summary.get("delta_vs_bins", [])})
@@ -402,6 +423,64 @@ def chart_tr_gap(bundle: AnalysisBundle, out: Path) -> None:
                   ncol=2, frameon=False, fontsize=9)
     fig.tight_layout(rect=(0, 0.06, 0.9, 1))
     save(fig, out / "12_tr_gap_expected_vs_actual.png")
+
+
+def chart_tr_monthly_stability(bundle: AnalysisBundle, out: Path) -> None:
+    m = bundle.matches.dropna(subset=["played_at_jst", "tr_after"]).copy()
+    fig, ax = plt.subplots(figsize=(10.8, 4.8))
+    if len(m):
+        played_at = pd.to_datetime(m["played_at_jst"], errors="coerce")
+        if played_at.dt.tz is not None:
+            played_at = played_at.dt.tz_convert("Asia/Tokyo").dt.tz_localize(None)
+        m["played_at_jst"] = played_at
+        m = m.dropna(subset=["played_at_jst", "tr_after"]).sort_values("played_at_jst")
+        m["month"] = m["played_at_jst"].dt.to_period("M").dt.to_timestamp()
+        monthly = (
+            m.groupby("month")["tr_after"]
+            .agg(
+                p10=lambda s: float(s.quantile(0.1)),
+                p50=lambda s: float(s.quantile(0.5)),
+                p90=lambda s: float(s.quantile(0.9)),
+                n="count",
+            )
+            .reset_index()
+        )
+        if len(monthly):
+            ax.fill_between(
+                monthly["month"], monthly["p10"], monthly["p90"],
+                color="#6366f1", alpha=0.18, label="P10-P90", zorder=1,
+            )
+            ax.plot(
+                monthly["month"], monthly["p50"],
+                color="#4f46e5", marker="o", markersize=3.8, linewidth=1.9,
+                label="P50", zorder=3,
+            )
+            ax.plot(
+                monthly["month"], monthly["p10"],
+                color="#64748b", linestyle="--", linewidth=1.15,
+                label="P10", zorder=2,
+            )
+            ax.plot(
+                monthly["month"], monthly["p90"],
+                color="#8b5cf6", linestyle="--", linewidth=1.15,
+                label="P90", zorder=2,
+            )
+            _set_padded_ylim(ax, pd.concat([monthly["p10"], monthly["p90"]], ignore_index=True), pad_ratio=0.08)
+            if len(monthly) == 1:
+                center = monthly.loc[0, "month"]
+                ax.set_xlim(center - pd.Timedelta(days=15), center + pd.Timedelta(days=15))
+    ax.set_title("TR推移：月次TRの分位帯")
+    ax.set_ylabel("TR")
+    ax.grid(alpha=0.25)
+    handles, labels = ax.get_legend_handles_labels()
+    if handles:
+        ax.legend(handles, labels, loc="upper center", bbox_to_anchor=(0.5, -0.2),
+                  ncol=min(len(handles), 4), frameon=False, fontsize=9)
+    ax.xaxis.set_major_locator(mdates.AutoDateLocator(minticks=5, maxticks=10))
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m"))
+    fig.autofmt_xdate()
+    fig.tight_layout(rect=(0, 0.08, 1, 1))
+    save(fig, out / "07_tr_monthly_stability.png")
 
 
 def chart_drawdown(bundle: AnalysisBundle, out: Path) -> None:
@@ -533,8 +612,12 @@ def chart_session_decay(bundle: AnalysisBundle, out: Path) -> None:
         _annotate_single_rate_bars(ax, x, wr, [r["n"] for r in d])
         # 副軸：各指標を1マッチ目（先頭位置）=100で正規化した4本線。
         ax2 = ax.twinx()
-        series = [("APM", "apm", "#ea580c"), ("PPS", "pps", "#7c3aed"),
-                  ("VS", "vs", "#0891b2"), ("Area", "area", "#65a30d")]
+        series = [
+            ("APM", "apm", METRIC_COLORS["APM"]),
+            ("PPS", "pps", METRIC_COLORS["PPS"]),
+            ("VS", "vs", METRIC_COLORS["VS"]),
+            ("Area", "area", METRIC_COLORS["Area"]),
+        ]
         for label, key, color in series:
             vals = np.array([r.get(key) if r.get(key) is not None else np.nan for r in d], dtype=float)
             finite = vals[np.isfinite(vals)]
@@ -688,24 +771,24 @@ def chart_score_state(bundle: AnalysisBundle, out: Path) -> None:
 
 def chart_duration_deltas(bundle: AnalysisBundle, out: Path) -> None:
     d = [r for r in bundle.summary["duration_bins"] if r["n"] >= 20]
-    metrics = [
-        ("delta_APM", "APM"),
-        ("delta_PPS", "PPS"),
-        ("delta_VS", "VS"),
-        ("delta_APP", "APP"),
-        ("delta_DS/S", "DS/S"),
-        ("delta_DS/P", "DS/Piece"),
-        ("delta_GbE", "GbE"),
-        ("delta_Area", "Area"),
+    metrics = [(f"delta_{label}", label) for label in ABILITY_METRICS] + [
+        (f"delta_{style}", style) for style in STYLE_ORDER
     ]
-    fig, axes = plt.subplots(4, 2, figsize=(11.4, 9.4), sharex=True)
+    style_colors = {
+        "Opener": "#d62728",
+        "Plonk": "#16a34a",
+        "Stride": "#eab308",
+        "Inf DS": "#2563eb",
+    }
+    fig, axes = plt.subplots(4, 4, figsize=(14.2, 10.8), sharex=True)
     axes_flat = axes.flatten()
     if d:
         x = np.arange(len(d))
         labels = [r["label"] for r in d]
         for ax, (key, label) in zip(axes_flat, metrics):
             y = np.array([r.get(key, np.nan) for r in d], dtype=float)
-            ax.plot(x, y, marker="o", linewidth=1.6, color="#2563eb")
+            color = METRIC_COLORS.get(label, style_colors.get(label, "#2563eb"))
+            ax.plot(x, y, marker="o", linewidth=1.6, color=color)
             ax.axhline(0, linewidth=1, linestyle="--", color="#6b7280")
             finite = y[np.isfinite(y)]
             if len(finite):
@@ -715,7 +798,7 @@ def chart_duration_deltas(bundle: AnalysisBundle, out: Path) -> None:
                 ax.set_ylim(low - pad, high + pad)
             ax.set_title(f"Δ{label}", fontsize=10)
             ax.grid(alpha=0.25)
-        for ax in axes_flat[-2:]:
+        for ax in axes_flat[-4:]:
             ax.set_xticks(x, labels, rotation=35, ha="right")
     else:
         for ax, (_, label) in zip(axes_flat, metrics):
@@ -732,23 +815,29 @@ def chart_duration_deltas(bundle: AnalysisBundle, out: Path) -> None:
 def chart_monthly_trends(bundle: AnalysisBundle, out: Path) -> None:
     m = bundle.matches.sort_values("played_at_jst").copy()
     metric_styles = {
-        "APM":    ("apm",            "#d62728", "-"),
-        "PPS":    ("pps",            "#1f77b4", "-"),
-        "VS":     ("vs",             "#2ca02c", "-"),
-        "Area":   ("Area",           "#e377c2", "-"),
-        "APP":    ("APP",            "#ff7f0e", "-"),
-        "DS/S":   ("DS/Second",      "#9467bd", "-"),
-        "DS/P":   ("DS/Piece",       "#17becf", "-"),
-        "GbE":    ("Garbage Effi.",  "#8c564b", "-"),
-        "VS/APM": ("VS/APM",         "#111827", "-"),
+        "APM":    ("apm",            METRIC_COLORS["APM"], "-"),
+        "PPS":    ("pps",            METRIC_COLORS["PPS"], "-"),
+        "VS":     ("vs",             METRIC_COLORS["VS"], "-"),
+        "APP":    ("APP",            METRIC_COLORS["APP"], "-"),
+        "DS/Second": ("DS/Second",   METRIC_COLORS["DS/Second"], "-"),
+        "DS/Piece": ("DS/Piece",     METRIC_COLORS["DS/Piece"], "-"),
+        "APP+DS/Piece": ("APP+DS/Piece", METRIC_COLORS["APP+DS/Piece"], "-"),
+        "VS/APM": ("VS/APM",         METRIC_COLORS["VS/APM"], "-"),
+        "Cheese Index": ("Cheese Index", METRIC_COLORS["Cheese Index"], "-"),
+        "Garbage Eff.": ("Garbage Effi.", METRIC_COLORS["Garbage Eff."], "-"),
+        "Area":   ("Area",           METRIC_COLORS["Area"], "-"),
+        "Est. TR": ("Est. TR",        METRIC_COLORS["Est. TR"], "-"),
     }
     groups = [
-        ("APM / PPS / VS", ["APM", "PPS", "VS"]),
-        ("派生指標", ["APP", "DS/S", "DS/P", "GbE", "VS/APM", "Area"]),
+        ("APM / PPS / VS / VS/APM", ["VS/APM", "APM", "PPS", "VS"]),
+        ("DS/Second / DS/Piece", ["DS/Second", "DS/Piece"]),
+        ("APP / APP+DS/Piece / Garbage Eff.", ["APP", "APP+DS/Piece", "Garbage Eff."]),
+        ("Cheese Index", ["Cheese Index"]),
+        ("Area / Est. TR", ["Area", "Est. TR"]),
     ]
     window = ROLLING_WINDOW
     min_periods = max(3, window // 2)
-    fig, axes = plt.subplots(2, 1, figsize=(11.4, 7.4), sharex=True)
+    fig, axes = plt.subplots(5, 1, figsize=(11.4, 13.2), sharex=True)
     for ax, (title, metrics) in zip(axes, groups):
         for metric in metrics:
             col, color, linestyle = metric_styles[metric]
@@ -761,7 +850,8 @@ def chart_monthly_trends(bundle: AnalysisBundle, out: Path) -> None:
             first = valid.iloc[0]
             if first == 0 or not np.isfinite(first):
                 continue
-            ax.plot(m["played_at_jst"], series / first * 100, linewidth=1.8, label=metric, color=color, linestyle=linestyle)
+            zorder = 1 if metric == "VS/APM" else 2
+            ax.plot(m["played_at_jst"], series / first * 100, linewidth=1.8, label=metric, color=color, linestyle=linestyle, zorder=zorder)
         ax.axhline(100, linewidth=1, linestyle="--", color="#6b7280")
         ax.set_title(title, fontsize=12)
         ax.set_ylabel("指数")
@@ -778,46 +868,12 @@ def chart_monthly_trends(bundle: AnalysisBundle, out: Path) -> None:
     save(fig, out / "05_monthly_normalized_trends.png")
 
 
-def chart_stability_windows(bundle: AnalysisBundle, out: Path) -> None:
-    stability = bundle.summary.get("stability", {})
-    specs = [spec for spec in GROWTH_STABILITY_METRICS if spec[0] in stability]
-    fig, axes = plt.subplots(4, 2, figsize=(11.2, 10.0))
-    axes_flat = axes.flatten()
-    for ax, (metric, _, fmt) in zip(axes_flat, specs):
-        row = stability[metric]
-        early = [row.get("early_p10"), row.get("early_p50"), row.get("early_p90")]
-        recent = [row.get("recent_p10"), row.get("recent_p50"), row.get("recent_p90")]
-        for y, vals, color, label in [(1, early, "#64748b", "Early"), (0, recent, "#2563eb", "Recent")]:
-            p10, p50, p90 = [float(v) if v is not None and np.isfinite(v) else np.nan for v in vals]
-            if np.isfinite(p10) and np.isfinite(p90):
-                ax.hlines(y, p10, p90, color=color, linewidth=5, alpha=0.35)
-            if np.isfinite(p50):
-                ax.scatter([p50], [y], color=color, s=34, zorder=3, label=label)
-                ax.annotate(fmt.format(p50), (p50, y), xytext=(6, 0), textcoords="offset points", va="center", fontsize=8)
-        early_cv = row.get("early_cv")
-        recent_cv = row.get("recent_cv")
-        cv_text = ""
-        if early_cv is not None and recent_cv is not None and np.isfinite(early_cv) and np.isfinite(recent_cv):
-            cv_text = f"CV {early_cv * 100:.1f}% -> {recent_cv * 100:.1f}%"
-        ax.set_title(f"{metric}  {cv_text}", fontsize=10)
-        ax.set_yticks([1, 0], ["Early", "Recent"])
-        ax.grid(axis="x", alpha=0.25)
-    for ax in axes_flat[len(specs):]:
-        ax.axis("off")
-    handles, labels = axes_flat[0].get_legend_handles_labels()
-    if handles:
-        fig.legend(handles[:2], labels[:2], loc="upper right", frameon=False)
-    fig.suptitle("Stability by metric (p10-p90 band, median point; early vs recent window)", y=0.995)
-    fig.tight_layout(rect=(0, 0, 1, 0.97))
-    save(fig, out / "06_stability_windows.png")
-
-
 def generate_all_charts(bundle: AnalysisBundle, output_dir: Path) -> None:
     set_japanese_font()
     funcs = [
         chart_tr_history, chart_metric_distributions, chart_capability_radar, chart_style_radar,
-        chart_style_trend, chart_monthly_trends, chart_stability_windows, chart_effect_sizes,
-        chart_delta_vs, chart_dominance, chart_tr_gap,
+        chart_style_trend, chart_monthly_trends, chart_effect_sizes,
+        chart_tr_monthly_stability, chart_delta_vs, chart_dominance, chart_tr_gap,
         chart_style_matchup_plane, chart_rivals,
         chart_drawdown, chart_streaks, chart_tiebreak, chart_comeback,
         chart_session_position, chart_session_decay,

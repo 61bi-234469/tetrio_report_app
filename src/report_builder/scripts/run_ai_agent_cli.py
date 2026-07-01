@@ -26,17 +26,20 @@ AI_CACHE = PROJECT_ROOT / "cache" / "ai"
 AGENT_PROMPT = {"codex": "prompt_codex.md", "claude": "prompt_claude.md"}
 REGULAR_REPORT_SECTIONS = (
     "overview",
-    "strengths",
-    "weaknesses",
-    "style",
-    "round_states",
-    "streak",
-    "session",
+    "growth_stability",
+    "capability",
+    "win_factors",
+    "style_matchup",
+    "opponent_expectation",
+    "rivals",
+    "clutch",
+    "comeback",
+    "round_time",
+    "session_flow",
 )
 REPORT_TEXT_FIELDS = (
     "_meta",
     *REGULAR_REPORT_SECTIONS,
-    "replays",
     "summary",
     "method",
     "evidence",
@@ -186,14 +189,6 @@ def normalize_report_text(data: dict) -> dict:
                 normalized.get(section), ("key", "bullets", "summary")
             )
 
-    if "replays" in normalized:
-        replays = keep_fields(normalized.get("replays"), ("key", "rows", "summary"))
-        if isinstance(replays, dict) and isinstance(replays.get("rows"), list):
-            replays["rows"] = [
-                keep_fields(row, ("priority", "condition", "viewpoint"))
-                for row in replays["rows"]
-            ]
-        normalized["replays"] = replays
     if "summary" in normalized:
         normalized["summary"] = keep_fields(normalized.get("summary"), ("key", "body"))
     if "method" in normalized:

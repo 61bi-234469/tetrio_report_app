@@ -31,15 +31,22 @@ REASONING_LEVEL_LABEL = {
     "low": "低",
 }
 
-SECTION_IDS = [
+REGULAR_SECTION_IDS = [
     "overview",
-    "strengths",
-    "weaknesses",
-    "style",
-    "round_states",
-    "streak",
-    "session",
-    "replays",
+    "growth_stability",
+    "capability",
+    "win_factors",
+    "style_matchup",
+    "opponent_expectation",
+    "rivals",
+    "clutch",
+    "comeback",
+    "round_time",
+    "session_flow",
+]
+
+SECTION_IDS = [
+    *REGULAR_SECTION_IDS,
     "summary",
     "method",
     "evidence",
@@ -49,11 +56,17 @@ DATA_MAP_LEGACY = """### データマップ（添付JSONの主な集計項目）
 
 `ai_appendix_data.json` を使います。各章で必要な項目を選んで使います。固定の対応はありません。JSONにない項目は触れず短く保留します。
 
-- 全体・推移: `meta`、`kpis`、`tr_change`、`recent_windows`、`recent_scope`、`growth`、`growth_window_n`、`drawdown`、`tr_gap`
-- マッチ単位の指標: `metrics`、`metrics_recent`、`stability`、`effect_sizes`、`delta_vs_bins`、`dominance`、`model`、`pps_bins`
-- プレイスタイル: `styles`、`styles_recent`
-- ラウンド単位の局面: `score_states`（同点・リード・ビハインド・各MP）、`tiebreak`（経路と指標変化）、`duration_bins`・`duration_by_result`（決着時間別）
-- マッチ単位の連続性: `streaks`（連勝後・連敗後・3連敗以降。すべてマッチ単位）、`streak_states`（段階別の勝率・期待超過・能力指標差）
+- 全体像と基本指標: `meta`、`kpis`、`tr_change`、`recent_windows`、`recent_scope`、`rank_journey`
+- 成長推移と安定性: `growth`、`growth_window_n`、`growth_windows`、`drawdown`
+- 能力バランス: `metrics`、`metrics_recent`、`styles`、`styles_recent`
+- 勝敗に関係しやすい指標: `effect_sizes`、`delta_vs_bins`、`dominance`、`pps_vs_dominance`、`model`、`pps_bins`
+- プレイスタイル相性: `style_matchup_plane`（相手スタイル2軸平面、4分類別勝率・期待超過）
+- 対戦相手の強さと期待値: `tr_gap`
+- ライバル: `rivals`（プレイヤーID、遭遇回数、勝敗、最終対戦日）
+- 接戦・決着局面: `score_states`（同点・リード・ビハインド・各MP）、`tiebreak`（経路と指標変化）
+- 逆転・ビハインド展開: `comeback`（第1ラウンド勝敗別、最大ビハインド別、逆転件数）
+- ラウンド展開とマッチ時間: `duration_bins`・`duration_by_result`（決着時間別）
+- 連戦の流れ: `streaks`（連勝後・連敗後・3連敗以降。すべてマッチ単位）、`streak_states`（段階別の勝率・期待超過・能力指標差）、`session_positions`、`session_decay`
 - セッション定義: `session_definition`（前マッチ完了直後から次マッチ開始まで10分以内なら同一セッション。マッチ完了時刻はラウンド時間から推定）
 - セッション内のマッチ位置: `session_positions`（1マッチ目〜11マッチ目以降。位置はマッチ単位）
 - セッション継続傾向: `session_dynamics`（勝ち後／負け後の継続率、セッションの終わり方、セッション長別の勝率。負け後の継続率が勝ち後より高ければ「負けるほど粘る」、逆なら「勝てているから続ける」傾向。継続率はデータ末尾の打ち切りマッチを除外済み）
@@ -106,31 +119,7 @@ def section_schema_regular() -> dict:
 
 def build_schema() -> dict:
     regular = section_schema_regular()
-    properties = {sid: regular for sid in SECTION_IDS}
-    properties["replays"] = {
-        "type": "object",
-        "additionalProperties": False,
-        "required": ["key", "rows", "summary"],
-        "properties": {
-            "key": {"type": "string", "minLength": 1, "maxLength": 120},
-            "rows": {
-                "type": "array",
-                "minItems": 1,
-                "maxItems": 6,
-                "items": {
-                    "type": "object",
-                    "additionalProperties": False,
-                    "required": ["priority", "condition", "viewpoint"],
-                    "properties": {
-                        "priority": {"type": "string", "minLength": 1, "maxLength": 10},
-                        "condition": {"type": "string", "minLength": 1},
-                        "viewpoint": {"type": "string", "minLength": 1},
-                    },
-                },
-            },
-            "summary": {"type": "string", "minLength": 1},
-        },
-    }
+    properties = {sid: regular for sid in REGULAR_SECTION_IDS}
     properties["summary"] = {
         "type": "object",
         "additionalProperties": False,
@@ -183,6 +172,15 @@ def build_schema() -> dict:
 
 
 def schema_example() -> str:
+    regular_example = {
+        "key": "この節の要点を1文で書きます。",
+        "bullets": [
+            "根拠JSONにある数値や区分を自然文で整理します。",
+            "マッチ・ラウンド・セッションの単位を明示します。",
+            "小標本や差が小さい項目は短く保留します。",
+        ],
+        "summary": "節全体の定性考察を1〜2文でまとめます。",
+    }
     example = {
         "_meta": {
             "ai_model": "Claude Opus 4.8",
@@ -191,25 +189,24 @@ def schema_example() -> str:
             "generated_date": "",
         },
         "overview": {
-            "key": "TRは大きく伸び、直近は攻撃面の底上げが見えます。",
+            "key": "TRは大きく伸び、直近は期待値を上回っています。",
             "bullets": [
                 "対象期間のTRは開始値から現在値まで上昇しています。",
-                "直近100マッチではAPMとVSが全期間平均より高く出ています。",
-                "最大ドローダウン後の戻り方は、直近窓の勝率と合わせて確認します。",
+                "直近100マッチの実績勝率は対戦前期待値を上回っています。",
+                "ランク推移は昇格回数と現在ランクで確認します。",
             ],
-            "summary": "全体として、短期の揺れを含みつつも攻撃面の伸びが結果に結びついています。",
+            "summary": "全体として、TR推移と期待超過が同じ向きに出ています。",
         },
-        "replays": {
-            "key": "勝率差が分かれている局面から優先して確認します。",
-            "rows": [
-                {
-                    "priority": "高",
-                    "condition": "相手マッチポイントのラウンド",
-                    "viewpoint": "攻撃へ寄せる前に受けが崩れていないかを確認します。",
-                }
-            ],
-            "summary": "添付JSONに区分がある条件だけを候補にしています。",
-        },
+        "growth_stability": regular_example,
+        "capability": regular_example,
+        "win_factors": regular_example,
+        "style_matchup": regular_example,
+        "opponent_expectation": regular_example,
+        "rivals": regular_example,
+        "clutch": regular_example,
+        "comeback": regular_example,
+        "round_time": regular_example,
+        "session_flow": regular_example,
         "summary": {
             "key": "勝ち筋は攻撃面の優位を結果へつなげる展開です。",
             "body": "全体を3〜5文でまとめます。",
@@ -260,8 +257,7 @@ def build_agent_prompt(reasoning_level: str, out_dir: Path) -> str:
     lines.append("Markdown、説明文、コードフェンス、前置き、後書きは出力しません。")
     lines.append("各フィールドの文章量・分析密度は、上記のチャット用プロンプトでHTML本文へ直接書く場合と同じレベルにします。")
     lines.append("")
-    lines.append("- 通常節（overview / strengths / weaknesses / style / round_states / streak / session）: `key`、`bullets`（3〜5項目）、`summary`。")
-    lines.append("- `replays`: `key`、`rows`（priority / condition / viewpoint）、`summary`。")
+    lines.append("- 通常節（overview / growth_stability / capability / win_factors / style_matchup / opponent_expectation / rivals / clutch / comeback / round_time / session_flow）: `key`、`bullets`（3〜5項目）、`summary`。")
     lines.append("- `summary`: `key`、`body`（3〜5文）。")
     lines.append("- `method`: `key`、`bullets`（主要な読み、逆因果、選択バイアス、数値だけでは判別できない要素）。")
     lines.append("- `evidence`: `body`（マッチ数、ラウンド数、対象期間、保留事項）。")

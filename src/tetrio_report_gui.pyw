@@ -66,7 +66,6 @@ DEFAULT_CONFIG = {
     "api_save_csv": False,
     "api_save_base_files": False,
     "report_open_html": True,
-    "report_show_opponent_names": False,
     "ai_open_html": True,
     "ai_report_method": "manual_chat",
     "ai_agent": "codex",
@@ -185,9 +184,6 @@ class ReportLauncherApp:
         report = ttk.LabelFrame(frm, text="① 戦績分析レポート作成", padding=8)
         report.grid(row=row, column=0, columnspan=2, sticky="ew", **pad)
         self.report_open_html_var = tk.BooleanVar(value=bool(cfg["report_open_html"]))
-        self.report_show_opponent_names_var = tk.BooleanVar(
-            value=bool(cfg["report_show_opponent_names"])
-        )
         ttk.Label(
             report,
             text="使用データの参照とハッシュは cache/latest_run_manifest.json に記録します。",
@@ -199,11 +195,6 @@ class ReportLauncherApp:
             report,
             text="作成後にレポートをブラウザーで開く",
             variable=self.report_open_html_var,
-        ).pack(anchor="w")
-        ttk.Checkbutton(
-            report,
-            text="ライバル章で対戦相手の実名を表示（既定は匿名）",
-            variable=self.report_show_opponent_names_var,
         ).pack(anchor="w")
         report_btns = ttk.Frame(report)
         report_btns.pack(fill="x", pady=(6, 0))
@@ -352,7 +343,6 @@ class ReportLauncherApp:
         cfg["report_open_html"] = bool(
             cfg.get("report_open_html", cfg.get("open_report", True))
         )
-        cfg["report_show_opponent_names"] = bool(cfg.get("report_show_opponent_names", False))
         cfg["ai_open_html"] = bool(
             cfg.get("ai_open_html", cfg.get("open_report", True))
         )
@@ -376,7 +366,6 @@ class ReportLauncherApp:
             "api_save_csv": self.api_save_csv_var.get(),
             "api_save_base_files": self.api_save_base_files_var.get(),
             "report_open_html": self.report_open_html_var.get(),
-            "report_show_opponent_names": self.report_show_opponent_names_var.get(),
             "ai_open_html": self.ai_open_html_var.get(),
             "ai_report_method": ai_method,
             "ai_agent": ai_agent,
@@ -411,7 +400,6 @@ class ReportLauncherApp:
             "api_save_csv": self.api_save_csv_var.get(),
             "api_save_base_files": self.api_save_base_files_var.get(),
             "report_open_html": self.report_open_html_var.get(),
-            "report_show_opponent_names": self.report_show_opponent_names_var.get(),
             "ai_open_html": self.ai_open_html_var.get() and ai_method == "agent_cli",
             "ai_report_method": ai_method,
             "ai_agent": _label_to_value(AI_AGENT_CHOICES, self.ai_agent_var.get(), "codex"),
@@ -627,8 +615,6 @@ class ReportLauncherApp:
             f"-Player '{p['username']}' "
             "-Force"
         )
-        if p.get("report_show_opponent_names"):
-            ps_inner += " -ShowOpponentNames"
         cmd = [
             "powershell",
             "-NoProfile",

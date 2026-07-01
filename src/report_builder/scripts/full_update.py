@@ -17,7 +17,7 @@ os.environ.setdefault("MPLCONFIGDIR", str(PROJECT_ROOT / "cache" / "matplotlib")
 from charts import generate_all_charts
 from input_normalizer import normalize_to_round_csv
 from render_report import ACTIVE_CHAPTER_NUMBERS, render_all
-from report_analysis import analyze_csv, apply_opponent_display, file_sha256, write_analysis_outputs
+from report_analysis import analyze_csv, file_sha256, write_analysis_outputs
 
 EXPECTED_CHARTS = [
     "01_tr_history.png", "02_metric_distributions.png", "03_capability_radar.png",
@@ -73,7 +73,6 @@ def main() -> None:
     p.add_argument("--window", type=int, default=300)
     p.add_argument("--force", action="store_true", help="同じCSVでも再分析する")
     p.add_argument("--external-images", action="store_true", help="確認用HTMLは画像を外部参照にする")
-    p.add_argument("--show-opponent-names", action="store_true", help="ライバル章で対戦相手の実名を表示する（既定は匿名ラベル）")
     args = p.parse_args()
 
     cache_dir = PROJECT_ROOT / "cache"
@@ -114,7 +113,6 @@ def main() -> None:
         and state.get("pipeline_sha256") == pipeline_hash
         and state.get("session_gap_minutes") == args.session_gap
         and state.get("window") == args.window
-        and state.get("show_opponent_names") == args.show_opponent_names
         and chart_ok
         and output_ok
     ):
@@ -131,7 +129,6 @@ def main() -> None:
         "normalized_csv": str(csv_path),
         "sha256": source_hash,
     })
-    apply_opponent_display(bundle.summary, show_names=args.show_opponent_names)
     write_analysis_outputs(bundle, cache_dir)
 
     print(f"2/5 {len(EXPECTED_CHARTS)}グラフ生成...")
@@ -164,7 +161,6 @@ def main() -> None:
         "pipeline_files": [str(path) for path in pipeline_paths],
         "session_gap_minutes": args.session_gap,
         "window": args.window,
-        "show_opponent_names": args.show_opponent_names,
         "updated_at": datetime.now().isoformat(timespec="seconds"),
         "matches": bundle.summary["meta"]["matches"],
         "rounds": bundle.summary["meta"]["rounds"],

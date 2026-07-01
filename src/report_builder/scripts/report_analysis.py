@@ -59,6 +59,7 @@ OPPONENT_COLUMN = {
 }
 # 直近表示の主集計に使うマッチ数。サンプル数を増やすため各ラウンドを利用する。
 RECENT_MATCH_WINDOW = 100
+TABLE_SCOPE_WINDOWS = [10, 50, 100]
 DEFAULT_SESSION_GAP_MINUTES = 10
 
 
@@ -944,8 +945,8 @@ def analyze_csv(
 
     recent_windows = []
     # 直近窓は総マッチ数より小さいものだけ採用し、最後に全期間を1回だけ足す。
-    # （総数が500未満のときに500/1000が全期間と同値で重複表示されるのを防ぐ）
-    window_sizes = [n for n in [100, 500, 1000] if n < len(completed)]
+    # （総数が窓サイズ以下のときに全期間と同値で重複表示されるのを防ぐ）
+    window_sizes = [n for n in TABLE_SCOPE_WINDOWS if n < len(completed)]
     window_sizes.append(len(completed))
     for n in window_sizes:
         n_eff = min(n, len(completed))
@@ -975,13 +976,14 @@ def analyze_csv(
     recent_scope = {"n_matches": int(recent_n), "n_rounds": int(len(recent_rounds))}
     metrics_recent = _metric_means(recent_matches)
 
-    # 初期・直近Nマッチ。
+    # 初期・直近Nマッチ。グラフと安定性比較用の既存スコープ。
     n_window = min(window_n, max(len(completed) // 3, 1))
     early = completed.head(n_window)
     recent = completed.tail(n_window)
     growth = {}
     stability = {}
-    for label, col in {"APM": "apm", "PPS": "pps", "VS": "vs", "APP": "APP", "DS/S": "DS/Second", "DS/P": "DS/Piece", "GbE": "Garbage Effi.", "Area": "Area"}.items():
+    growth_metric_cols = {"APM": "apm", "PPS": "pps", "VS": "vs", "APP": "APP", "DS/S": "DS/Second", "DS/P": "DS/Piece", "GbE": "Garbage Effi.", "Area": "Area"}
+    for label, col in growth_metric_cols.items():
         e, r = float(early[col].mean()), float(recent[col].mean())
         growth[label] = {
             "early": e, "recent": r,
@@ -998,6 +1000,18 @@ def analyze_csv(
             "early_cv": float(early[col].std(ddof=1) / early[col].mean()) if early[col].mean() else math.nan,
             "recent_cv": float(recent[col].std(ddof=1) / recent[col].mean()) if recent[col].mean() else math.nan,
         }
+
+    growth_windows = []
+    for n in window_sizes:
+        n_eff = min(n, len(completed))
+        g = completed.tail(n_eff)
+        row: dict[str, Any] = {
+            "label": "全期間" if n == len(completed) else f"直近{n_eff}マッチ",
+            "n": int(n_eff),
+        }
+        for label, col in growth_metric_cols.items():
+            row[label] = float(g[col].mean()) if col in g else math.nan
+        growth_windows.append(row)
 
     effect_sizes = []
     effect_metric_cols = {
@@ -1553,6 +1567,7 @@ def analyze_csv(
         "recent_scope": recent_scope,
         "growth_window_n": int(n_window),
         "growth": growth,
+        "growth_windows": growth_windows,
         "stability": stability,
         "monthly_changes": monthly_changes,
         "effect_sizes": effect_sizes,
@@ -1630,6 +1645,7 @@ def write_analysis_outputs(bundle: AnalysisBundle, cache_dir: Path) -> None:
         "recent_scope": bundle.summary["recent_scope"],
         "growth_window_n": bundle.summary["growth_window_n"],
         "growth": bundle.summary["growth"],
+        "growth_windows": bundle.summary["growth_windows"],
         "stability": bundle.summary["stability"],
         "effect_sizes": bundle.summary["effect_sizes"],
         "delta_vs_bins": bundle.summary["delta_vs_bins"],

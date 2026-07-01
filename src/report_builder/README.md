@@ -21,7 +21,7 @@
 - TR差による期待勝率モデル
 - 相対指標による診断モデル
 - 20枚のグラフ
-- 8章の説明文・表
+- 12章の説明文・表
 - 月別集計（折り畳み付録）
 - 検証済みパーソナルレコード（折り畳み付録）
 - AIへ渡す軽量な分析JSON
@@ -77,7 +77,7 @@ cache/records.json
 2. 試合単位・月単位・セッション単位へ集計
 3. 期待勝率、効果量、相性、タイブレーク等を分析
 4. 20グラフをPNGで生成
-5. 8章、KPI、月別集計、PRをHTML断片として生成
+5. 12章、KPI、月別集計、PRをHTML断片として生成
 6. Jinja2テンプレートへ挿入
 7. 最後にPNGをBase64化し、単一HTMLを作成
 8. 章数・画像数・付録・未解決変数を検証
@@ -164,13 +164,13 @@ APP、DS系、GbE、Areaはスクリプト側で再計算します。
 scripts/report_analysis.py   集計・モデル・月別・PR
 scripts/analyze.py           集計だけのCLI
 scripts/charts.py            20グラフ生成
-scripts/render_report.py     8章・付録・KPI生成
+scripts/render_report.py     12章・付録・KPI生成
 scripts/full_update.py       全工程の実行
 scripts/build_report.py      最終HTML組み立て
 
 template/base.html           HTML骨格
 template/report.css          デザイン
-cache/generated/chapters/    自動生成された8章
+cache/generated/chapters/    自動生成された12章
 cache/generated/appendices.html 自動生成された付録
 charts/                      自動生成されたPNG
 cache/                       集計JSON・CSV・キャッシュ情報

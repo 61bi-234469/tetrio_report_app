@@ -133,8 +133,29 @@ footer{margin-top:48px;border-top:1px solid var(--grid);padding-top:18px;color:v
 {{ card(session_flow, "neutral") }}
   </section>
 
+  <section id="replays">
+    <h2><span class="no">12</span>次に見るべきリプレイ条件</h2>
+    <p class="lead">勝ち筋・負け筋が分かれやすい条件から、振り返ると確認しやすいリプレイの条件を整理します。プレイングの指示ではなく確認の観点です。</p>
+    <div class="card neutral">
+      <p class="key">{{ replays.key }}</p>
+      <div class="tbl-scroll">
+        <table>
+          <thead>
+            <tr><th>優先度</th><th>見るリプレイ（条件）</th><th>見たい点（確認の観点）</th></tr>
+          </thead>
+          <tbody>
+          {% for row in replays.rows %}
+            <tr><td class="pri {{ 'pri-high' if row.priority == '高' else 'pri-mid' }}">{{ row.priority }}</td><td>{{ row.condition }}</td><td>{{ row.viewpoint }}</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <p>{{ replays.summary }}</p>
+    </div>
+  </section>
+
   <section id="summary">
-    <h2><span class="no">12</span>総括</h2>
+    <h2><span class="no">13</span>総括</h2>
     <div class="card">
       <p class="key">{{ summary.key }}</p>
       <p>{{ summary.body }}</p>
@@ -142,7 +163,7 @@ footer{margin-top:48px;border-top:1px solid var(--grid);padding-top:18px;color:v
   </section>
 
   <section id="method">
-    <h2><span class="no">13</span>分析過程と検証・逆因果</h2>
+    <h2><span class="no">14</span>分析過程と検証・逆因果</h2>
     <p class="lead">読者が考察を後から検証・反証できるよう、読みの組み立て方と逆因果・選択バイアスの可能性を明記します。</p>
     <div class="card neutral">
       <p class="key">{{ method.key }}</p>
@@ -155,7 +176,7 @@ footer{margin-top:48px;border-top:1px solid var(--grid);padding-top:18px;color:v
   </section>
 
   <section id="evidence">
-    <h2><span class="no">14</span>根拠と保留事項</h2>
+    <h2><span class="no">15</span>根拠と保留事項</h2>
     <div class="card">
       <p>{{ evidence.body }}</p>
     </div>

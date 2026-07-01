@@ -137,7 +137,7 @@ def main() -> None:
     print(f"2/5 {len(EXPECTED_CHARTS)}グラフ生成...")
     generate_all_charts(bundle, charts_dir)
 
-    print("3/5 10章・付録・KPI生成...")
+    print("3/5 12章・付録・KPI生成...")
     render_all(bundle, PROJECT_ROOT, args.player)
 
     print("4/5 自己完結HTML生成...")
@@ -178,7 +178,7 @@ def main() -> None:
         "ai_payload_bytes": (cache_dir / "ai_analysis_payload.json").stat().st_size,
     }
     state_path.write_text(json.dumps(validation, ensure_ascii=False, indent=2), encoding="utf-8")
-    if missing or validation["chapter_count"] != 10 or validation["appendix_count"] != 2 or validation["unresolved_jinja"]:
+    if missing or validation["chapter_count"] != 12 or validation["appendix_count"] != 3 or validation["unresolved_jinja"]:
         raise SystemExit(f"Validation failed: {json.dumps(validation, ensure_ascii=False)}")
     if not args.external_images and validation["embedded_images"] != len(EXPECTED_CHARTS):
         raise SystemExit(f"Expected {len(EXPECTED_CHARTS)} embedded images, got {validation['embedded_images']}")

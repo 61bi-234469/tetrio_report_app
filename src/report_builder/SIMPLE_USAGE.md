@@ -39,10 +39,10 @@
 .\make_report.ps1 -PrepareAI
 ```
 
-第8章（試合間・セッション全体の流れ）だけ：
+第12章（連戦の流れとセッション内のマッチ位置）だけ：
 
 ```powershell
-.\make_report.ps1 -PrepareAI -Chapter 8
+.\make_report.ps1 -PrepareAI -Chapter 12
 ```
 
 ## PowerShellの実行がブロックされる場合

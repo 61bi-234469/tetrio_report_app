@@ -419,29 +419,25 @@ def render_chapters(bundle: AnalysisBundle, project_root: Path) -> None:
         growth.items(),
         key=lambda x: x[1]["growth_rate"] if x[1]["growth_rate"] is not None and np.isfinite(x[1]["growth_rate"]) else -999,
     )
-    tr_monthly_result = "月次TR分位帯を集計できませんでした。"
+    tr_band_window = 50
+    tr_monthly_result = "マッチ単位TR分位帯を集計できませんでした。"
     tr_monthly = bundle.matches.dropna(subset=["played_at_jst", "tr_after"]).copy()
     if len(tr_monthly):
         played_at = pd.to_datetime(tr_monthly["played_at_jst"], errors="coerce")
         if played_at.dt.tz is not None:
             played_at = played_at.dt.tz_convert("Asia/Tokyo").dt.tz_localize(None)
         tr_monthly["played_at_jst"] = played_at
-        tr_monthly = tr_monthly.dropna(subset=["played_at_jst", "tr_after"])
-        tr_monthly["month"] = tr_monthly["played_at_jst"].dt.to_period("M").dt.to_timestamp()
-        tr_monthly_band = (
-            tr_monthly.groupby("month")["tr_after"]
-            .agg(
-                p10=lambda v: float(v.quantile(0.1)),
-                p50=lambda v: float(v.quantile(0.5)),
-                p90=lambda v: float(v.quantile(0.9)),
-                n="count",
-            )
-            .reset_index()
-        )
+        tr_monthly = tr_monthly.dropna(subset=["played_at_jst", "tr_after"]).sort_values("played_at_jst")
+        tr_rolling = tr_monthly["tr_after"].rolling(window=tr_band_window, min_periods=1)
+        tr_monthly_band = pd.DataFrame({
+            "p10": tr_rolling.quantile(0.1),
+            "p50": tr_rolling.quantile(0.5),
+            "p90": tr_rolling.quantile(0.9),
+        }).dropna()
         if len(tr_monthly_band):
             latest_tr_band = tr_monthly_band.iloc[-1]
             tr_monthly_result = (
-                f"直近月のP50は{nfmt(latest_tr_band['p50'],0,True)}、"
+                f"直近{min(tr_band_window, len(tr_monthly))}マッチ窓のP50は{nfmt(latest_tr_band['p50'],0,True)}、"
                 f"P10-P90幅は{nfmt(latest_tr_band['p90'] - latest_tr_band['p10'],0,True)}です。"
             )
     c2 = chapter_header(3, "成長推移と安定性", "マッチ日時ベースの指標推移と、直近10マッチ・50マッチ・100マッチ・全期間の指標平均を確認します。")
@@ -462,12 +458,12 @@ def render_chapters(bundle: AnalysisBundle, project_root: Path) -> None:
         ("中", "mid"),
     )
     c2 += "<h3>主要指標の直近窓別平均</h3>" + table(["指標"] + [w["label"] for w in growth_windows], growth_rows, min_width=760)
-    c2 += "<h3>TRの安定性・上振れ・下振れ</h3>" + grain("月単位。各月のマッチ後TRをP10・P50・P90で見ます。") + fig("07_tr_monthly_stability.png", "TRの安定性・上振れ・下振れ")
+    c2 += "<h3>TRの安定性・上振れ・下振れ</h3>" + grain("マッチ単位。各マッチ時点の直近50マッチ後TRをP10・P50・P90で見ます。") + fig("07_tr_monthly_stability.png", "TRの安定性・上振れ・下振れ")
     c2 += block(
-        "P50は月内の通常値、P90は上振れ側、P10は下振れ側です。P10-P90の帯が狭い月はTRが安定し、広い月は上下の振れ幅が大きい状態です。",
+        "P50は直近窓の通常値、P90は上振れ側、P10は下振れ側です。P10-P90の帯が狭い区間はTRが安定し、広い区間は上下の振れ幅が大きい状態です。",
         tr_monthly_result,
         "P50の傾きで基準TRの推移、P90の伸びで到達上限、P10の底上げで崩れにくさを確認できます。",
-        "月内マッチ数が少ない月は分位点が単発結果に寄ります。TRは相手強度と内部レーティングの影響を受けるため、能力指標の推移と併読します。",
+        "序盤やデータが少ない期間は分位点が少数マッチに寄ります。TRは相手強度と内部レーティングの影響を受けるため、能力指標の推移と併読します。",
         ("中", "mid"),
     )
     c2 += "<h3>TRドローダウン</h3>" + grain("マッチ単位。各マッチ後TRが、それまでのピークからどれだけ下がったかを見ます。") + fig("13_tr_drawdown.png", "TRドローダウン")
@@ -808,16 +804,16 @@ def render_chapters(bundle: AnalysisBundle, project_root: Path) -> None:
             [[r["label"], pct(r["win_rate"]), pp(r["excess"]), sgn(r["d_apm"], 1), sgn(r["d_pps"], 2), sgn(r["d_vs"], 1), sgn(r["d_area"], 1), r["n"]] for r in streak_states],
             left_cols={0},
         )
-    loss3 = next((r for r in streak_states if r["label"] == "3連敗以降"), None)
-    after_loss_states = [r for r in streak_states if r["label"] in ("1連敗", "2連敗", "3連敗以降")]
+    loss4 = next((r for r in streak_states if r["label"] == "4連敗以上"), None)
+    after_loss_states = [r for r in streak_states if r["label"] in ("1連敗", "2連敗", "3連敗", "4連敗以上")]
     c8 += block(
-        "棒グラフの横軸は連続した勝敗の長さ、縦軸は発生回数です。表は直前の連勝・連敗段階別に、次マッチの実績勝率・期待超過・能力指標差分（全完了マッチ平均との差）を並べています。",
+        f"棒グラフは{session_rule} セッションごとの最大連勝・最大連敗を1〜9マッチ、10マッチ以上でまとめ、縦軸をセッション数で示します。表はセッション内の直前段階別に、次マッチの実績勝率・期待超過・能力指標差分（全完了マッチ平均との差）を並べています。",
         f"最長連勝は{streak['max_win']}、最長連敗は{streak['max_loss']}です。" + (
             "連敗段階の期待超過は" + "、".join(f"{r['label']}{pp(r['excess'])}（n={r['n']}）" for r in after_loss_states) + "です。" if after_loss_states else "段階別の標本が不足しています。"
         ),
         "段階に沿って期待超過や能力指標差分が単調に動くか、特定段階だけ外れるかを確認します。期待超過は相手強度を補正した結果の上振れ・下振れです。",
         "相手強度・時期・セッション位置が混ざる単純集計です。実績勝率だけでなく期待超過と能力指標差分を併読し、段階別の変化を比較します。",
-        confidence(loss3["n"] if loss3 else 0, (loss3["excess"] if loss3 else None)),
+        confidence(loss4["n"] if loss4 else 0, (loss4["excess"] if loss4 else None)),
     )
     c8 += "<h3>セッション内のマッチ位置（マッチ単位）</h3>" + grain(f"セッション内のマッチ位置。前マッチ完了直後から次マッチ開始までの間隔が{session_gap_minutes}分以内の連戦で、何マッチ目かを見ます。") + fig("16_session_position.png", "セッション位置")
     if positions:

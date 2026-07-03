@@ -33,5 +33,28 @@ src/report_builder/input/*.pq
 # Local logs
 *.log
 
+# Local environment variables
+.env
+.env.*
+!.env.example
+web/.env
+web/.env.*
+!web/.env.example
+web/.dev.vars
+web/.dev.vars.*
+
+# Local Claude/Codex preview settings
+.claude/
+
+# Web build/runtime artifacts
+web/node_modules/
+web/.wrangler/
+web/dist/
+web/coverage/
+web/public/report.js
+
+# Pre-anonymization real-data inputs for fixtures (never commit raw handles/IDs)
+web/test/fixtures/raw/
+
 # Local design notes and records (local only)
 docs/

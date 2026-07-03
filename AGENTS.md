@@ -1,54 +1,47 @@
 # AGENTS.md
 
-# genshijinのルール
-削除対象:
-- 敬語・丁寧語（です/ます/ございます → 体言止め・用言止め）
-- クッション言葉（えーと/まあ/ちなみに/一応/基本的に）
-- ぼかし（〜かもしれません/〜と思われます/おそらく）
-- 冗長助詞（〜することができる→〜できる）
-- 冗長接続（〜ということになりますので→だから）
-- 自明な助詞（が/の/を/に/で/は/と/も）— 意味通じるなら省略
+## Project Overview
+- Unofficial TETR.IO Tetra League report generator ("戦績レポート for TETR.IO"). Public, MIT-licensed repository; not affiliated with TETR.IO / osk.
+- Two editions live side by side:
+  - **Web edition (current)** in `web/` — a Cloudflare Workers app. All new features go here.
+  - **Python edition (legacy)** in `src/` — Windows GUI/CLI pipeline. Maintenance only; do not add features.
+- Keep the unofficial notice, trademark note, and third-party formula attribution (TetraStats) consistent across `NOTICE.md`, `README.md`, `THIRD_PARTY_NOTICES.md`, and the report footers (`src/report_builder/content/partials/footer.html` and the web renderer) when touching related text.
 
-## Project Notes
-- This is a Windows-oriented TETR.IO report generator. The root-level GUI `.bat` launcher (`レポート作成GUI.bat`) starts `src/tetrio_report_gui.pyw`.
-- This is a public, MIT-licensed repository (`LICENSE`). It is an unofficial tool, not affiliated with TETR.IO / osk. Keep the unofficial notice, trademark note, and third-party formula attribution consistent across `NOTICE.md`, `README.md`, `THIRD_PARTY_NOTICES.md`, and the report footer when touching related text.
-- Targets Windows 10/11, Python 3.10+, and PowerShell 5.1+. `python`/`py -3` must be on PATH.
-- The main pipeline is: fetch Tetra League data with `src/api_export/tetrio_league_export.py`, enrich match and round data with derived TETR.IO metrics, then build an HTML report through `src/report_builder/make_report.ps1`.
-- `src/report_builder/make_report.ps1` owns Python environment setup for the report builder. It creates `src/report_builder/.venv` when missing, installs `src/report_builder/requirements.txt`, and records the requirements hash in `src/report_builder/cache/.requirements.sha256`.
-- The report builder accepts round-level CSV/Parquet input. When using API-exported data, pass the `_rounds_with_params.parquet` file as `-DataFile` and the matching `_matches_with_params.parquet` file as `-MatchesFile`.
-- Generated chapter fragments are written to `src/report_builder/cache/generated/chapters/` and included from `src/report_builder/template/base.html`. The legacy `src/report_builder/content/chapters/` and `src/report_builder/content/partials/appendices.html` are kept only for local compatibility and are Git-ignored; do not author new content there.
-- Generated and user-local paths include `data/`, `reports/`, `gui_config.json`, `docs/`, and `src/report_builder/{cache,charts,output,input,.venv}`. Treat these as reproducible or local runtime artifacts unless the user explicitly asks to inspect or preserve them. `docs/` holds local-only design notes and is Git-ignored.
-- Do not commit downloaded TETR.IO data, generated HTML reports, chart PNGs, cache JSON/CSV files, or virtual environments.
+## Web Edition (`web/`)
+- Requires Node.js 22+. Run all npm commands from `web/`.
+- `npm run dev` builds the client bundle and starts `wrangler dev` (default `http://localhost:8787`).
+- `npm run check` runs typecheck + client build + vitest. Run it before committing `web/` changes; CI (`.github/workflows/web.yml`) runs the same.
+- Architecture constraint: the Worker stays a lightweight proxy to the TETRA CHANNEL API (`/api/league-page`); aggregation and rendering run in the browser so the app fits the Workers free tier. Do not move heavy computation into the Worker.
+- `web/public/report.js` is a build artifact (Git-ignored); edit the sources under `web/src/` instead.
+- Tests live in `web/test/`, including golden tests (`python-golden.test.ts`) that keep metric parity with the Python edition. Fixtures are anonymized; raw pre-anonymization inputs belong in the Git-ignored `web/test/fixtures/raw/` only.
 
-## Personal Data Hygiene
-- `your_username` is the placeholder player identifier. CLI/GUI/script defaults and README samples use it, and `tetrio_league_export.py` errors out if it is left unchanged at runtime (`validate_username`).
-- Do not commit real TETR.IO handles, opponent data, or other personal identifiers into tracked source. Keep `your_username` as the default in scripts and docs.
+## Python Edition (`src/`, legacy)
+- Targets Windows 10/11, Python 3.10+, PowerShell 5.1+. The root `レポート作成GUI.bat` launches `src/tetrio_report_gui.pyw`.
+- Pipeline: fetch data with `src/api_export/tetrio_league_export.py`, then build the HTML report with `src/report_builder/make_report.ps1` (which owns `.venv` creation and dependency install).
+- Keep the GUI a thin orchestrator; do not duplicate analysis or rendering logic in `tetrio_report_gui.pyw`. Keep metric formulas centralized in `tetrio_league_export.py` and `src/report_builder/scripts/report_analysis.py`.
+- Validate with the smallest relevant command (the specific script or `make_report.ps1`) rather than the full GUI flow. Use `-Open` only when the user wants the report opened.
 
-## Common Commands
-- Launch the GUI from the repository root with the root-level `.bat` launcher.
-- Build a report from existing data with:
-  `.\src\report_builder\make_report.ps1 -DataFile "data\<user>_tetra_league_rounds_with_params.parquet" -MatchesFile "data\<user>_tetra_league_matches_with_params.parquet" -Player "<label>"`
-- Fetch API data directly with:
-  `& "src\report_builder\.venv\Scripts\python.exe" "src\api_export\tetrio_league_export.py" --source api --username <user> --max-matches 100 --outputs all --output-dir "data"`
-- `make_report.ps1` switches: `-Force` (ignore cache and rerun every stage), `-Open` (open the HTML in a browser when done), `-PrepareAI` (emit the single AI input JSON plus the ② AI-report prompts and `report_text_schema.json` under `cache/ai/`), `-GenerateAIReport` (auto-build the ② AI report via an agent CLI; pairs with `-AIAgent codex|claude`), `-AIReasoningLevel standard|high|low` (AI agent reasoning level; input JSON stays `ai_appendix_data.json`; `-AIQuality` remains as a compatibility alias), `-Chapter 9,12` (limit the legacy `-PrepareAI` JSON to specific chapters, range 1-12), `-ExternalImages` (emit an extra `preview_yyyy_mm_dd.html` that references images externally). `-GenerateAIReport` failures (missing CLI, auth, validation) keep the ① report intact and leave `cache/ai/` materials for the manual chat fallback. Use `-Open` only when the user wants the report opened.
-
-## Implementation Guidance
-- Keep the GUI as a thin orchestrator around the API export and report builder scripts. Avoid duplicating analysis or rendering logic in `src/tetrio_report_gui.pyw`.
-- Preserve UTF-8 subprocess handling in the GUI. It sets `PYTHONUTF8`, `PYTHONIOENCODING`, and `PYTHONUNBUFFERED` so child process output remains readable and streamed.
-- Keep metric formulas and parameter column names centralized in `src/api_export/tetrio_league_export.py` and `src/report_builder/scripts/report_analysis.py`. If a derived metric changes, update both data export and report analysis paths only when the data contract requires it.
-- Prefer focused validation by running the smallest relevant command: API-export changes should exercise `tetrio_league_export.py` or `add_tetra_league_params.py`; report-builder changes should exercise `make_report.ps1` or the specific script under `src/report_builder/scripts/`.
+## Data and Privacy
+- Never commit downloaded TETR.IO data, generated HTML reports, chart images, cache files, or virtual environments. `data/`, `reports/`, `gui_config.json`, `docs/`, `src/report_builder/{cache,charts,output,input,.venv}` are reproducible or local-only (see `.gitignore`).
+- `docs/` holds local-only design notes and is Git-ignored; new plans and records go there, not into tracked files.
+- `your_username` is the placeholder player identifier in defaults, docs, and samples. Do not commit real TETR.IO handles, opponent data, or other personal identifiers into tracked source or fixtures.
+- Exception: `61bi_234469` is the repository owner's own TETR.IO handle and may appear in checked-in sample reports when the owner explicitly permits it. Keep other player/opponent identifiers anonymized unless similarly authorized.
 
 ## Report Writing Style
-- Use concise Japanese in desu/masu style for user-facing report text.
-- Prefer direct statements about what the metric uses and what it shows. Avoid leading with limitations, negations, or exhaustive caveats.
-- Good: `対戦前Glicko/RDを使った標準Glicko期待スコアで評価しています。`
-- Avoid: `期待値はTETR.IO内部計算の完全再現ではなく、parquet内の対戦前Glicko/RDを使った標準Glicko期待スコアです。`
-- Good: `保存済みデータから勝率を推定しています。`
-- Avoid: `この勝率は実際のマッチメイキング仕様を再現したものではなく、保存済みデータから計算した推定値です。`
-- Good: `RDが高いプレイヤーは評価のブレが大きくなります。`
-- Avoid: `RDが高いプレイヤーは不確実性が大きいため、結果の解釈には注意が必要です。`
+- User-facing report text is concise Japanese in plain form (常体), not desu/masu (敬体). Default to noun-ending (体言止め); use a plain declarative verb (だ・である／〜する・〜ない) only when a verb is needed. This keeps strings short, stays consistent, and maps cleanly to a future English (neutral declarative) translation.
+- Prefer quantitative, direct statements about what a metric uses and shows. Do not lead with limitations or stack hedges inline.
+- In the web edition, register recurring caveats in the catalog (`web/src/render/caveats.ts`) and reference them by ID instead of writing warning prose into each figure.
+- Good: `保存済みデータから勝率を推定。` / Avoid (desu/masu + hedge-stacking): `この勝率は実際のマッチメイキング仕様を再現したものではなく、保存済みデータから計算した推定値です。`
+- This applies to the report body (chapters, leads, grain labels, block headlines/captions, caveats, glossary, footer, empty-state messages). The `web/` landing page (`web/public/index.html`) is separate marketing/instruction copy and is not covered by this rule.
 
-## Git And Delivery Rules
+## Skills
+- Reusable task procedures live in `.agents/skills/`. Follow them exactly rather than improvising the equivalent steps from scratch.
+- Before committing, follow `.agents/skills/commit/SKILL.md` (fixed author, English message, `Model:` trailer, no push without explicit confirmation).
+- Before reporting a `web/` change as verified, follow `.agents/skills/verify-web-report/SKILL.md` (run `npm run check`, then render the report in a real browser).
+
+## Git and Delivery Rules
+- Use `develop` as the sole development branch. Make routine development commits directly on `develop`; do not create branches without explicit user approval.
+- Treat `main` as the production branch. Do not commit directly to `main`.
 - Before making a commit, set the git author to `61bi-234469 <121346275+61bi-234469@users.noreply.github.com>`.
 - Write commit messages in English (subject and body) so they read consistently in `git log`.
 - Include the model name in commit messages so it is visible in `git log` (for example, a trailer such as `Model: GPT-5.5 Codex`).

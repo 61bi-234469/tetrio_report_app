@@ -2,6 +2,7 @@ import type { DataRow, MatchRow, RoundRow } from "./types";
 import { STYLE_ORDER } from "./model";
 import { mean } from "./stats";
 import { jstParts, toNumber } from "../utils";
+import { BASE_PARAM_COLUMNS, calculateParams } from "../params";
 
 export const EST_TR_COLUMN = "Est. TR";
 export const LEGACY_EST_TR_COLUMNS = [
@@ -113,12 +114,24 @@ export function buildMatchRows(rounds: RoundRow[], sessionGapMinutes = DEFAULT_S
       "rd_before",
       "rd_after",
       "rd_delta",
+      "games_played_before",
+      "games_played_after",
+      "games_played_delta",
+      "games_won_before",
+      "games_won_after",
+      "games_won_delta",
       "opponent_glicko_before",
       "opponent_glicko_after",
       "opponent_glicko_delta",
       "opponent_rd_before",
       "opponent_rd_after",
       "opponent_rd_delta",
+      "opponent_games_played_before",
+      "opponent_games_played_after",
+      "opponent_games_played_delta",
+      "opponent_games_won_before",
+      "opponent_games_won_after",
+      "opponent_games_won_delta",
       "league_rank_before",
       "league_rank_after",
       "placement_before",
@@ -142,31 +155,11 @@ export function buildMatchRows(rounds: RoundRow[], sessionGapMinutes = DEFAULT_S
       "apm",
       "pps",
       "vs",
-      "APP",
-      "DS/Second",
-      "DS/Piece",
-      "APP+DS/Piece",
-      "VS/APM",
-      "Garbage Effi.",
-      "Cheese Index",
-      "Area",
-      EST_TR_COLUMN,
       "btb",
       "opponent_apm",
       "opponent_pps",
       "opponent_vs",
-      "opponent_APP",
-      "opponent_DS/Second",
-      "opponent_DS/Piece",
-      "opponent_APP+DS/Piece",
-      "opponent_VS/APM",
-      "opponent_Garbage Effi.",
-      "opponent_Cheese Index",
-      "opponent_Area",
-      `opponent_${EST_TR_COLUMN}`,
       "opponent_btb",
-      ...STYLE_ORDER,
-      ...STYLE_ORDER.map((style) => `opponent_${style}`),
     ];
     for (const key of metricColumns) {
       const value = mean(group.map((row) => row[key]));
@@ -174,6 +167,8 @@ export function buildMatchRows(rounds: RoundRow[], sessionGapMinutes = DEFAULT_S
         match[key] = value;
       }
     }
+    assignCalculatedParams(match, "", "");
+    assignCalculatedParams(match, "opponent_", "opponent_");
 
     match.match_number = matchNumber;
     match.round_count = group.length;
@@ -264,9 +259,23 @@ function normalizeRound(row: RoundRow): RoundRow {
   }
   Object.assign(row, deriveRoundMetrics(toNumber(row.apm), toNumber(row.pps), toNumber(row.vs), ""));
   Object.assign(row, deriveRoundMetrics(toNumber(row.opponent_apm), toNumber(row.opponent_pps), toNumber(row.opponent_vs), "opponent_"));
+  assignCalculatedParams(row, "", "");
+  assignCalculatedParams(row, "opponent_", "opponent_");
   const lifetime = toNumber(row.lifetime_ms);
   row.lifetime_s = lifetime === null ? null : lifetime / 1000;
   return row;
+}
+
+function assignCalculatedParams(row: DataRow, sourcePrefix: string, outputPrefix: string): void {
+  try {
+    Object.assign(row, calculateParams(row, undefined, undefined, sourcePrefix, outputPrefix));
+  } catch {
+    for (const column of BASE_PARAM_COLUMNS) {
+      if (row[`${outputPrefix}${column}`] === undefined) {
+        row[`${outputPrefix}${column}`] = null;
+      }
+    }
+  }
 }
 
 // report_analysis.enrich_rounds と同じ列単位のNaN伝播: 分母0や欠損はその列だけnull。

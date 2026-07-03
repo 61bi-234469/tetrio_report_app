@@ -1,6 +1,7 @@
 import type { AnalysisBundle } from "../analysis/types";
 import type { Anonymizer } from "../render/anonymize";
 import { quantile, rollingMean } from "../analysis/stats";
+import { BASE_PARAM_COLUMNS, calculateAverageParams } from "../params";
 import {
   EXPECTED_COLOR,
   LOSS_COLOR,
@@ -195,7 +196,7 @@ export function buildChartConfigs(bundle: AnalysisBundle, anon: Anonymizer): Rec
     data: {
       labels: dateLabels,
       datasets: Object.entries(STYLE_COLORS).map(([style, color]) =>
-        lineDataset(style, rollingMean(matches.map((match) => numberOrNull(match[style])), 20), color)),
+        lineDataset(style, rollingParamColumnMean(matches, style, 20), color)),
     },
     options: baseOptions({ x: dateAxis(), y: axis("スタイル傾向（20マッチ平均）") }),
   };
@@ -223,7 +224,7 @@ export function buildChartConfigs(bundle: AnalysisBundle, anon: Anonymizer): Rec
 
 function buildTrHistory(matches: AnalysisBundle["matches"], dateLabels: string[]): ChartConfig {
   const trSeries = matches.map((match) => numberOrNull(match.tr_after));
-  const estTr = rollingMean(matches.map((match) => numberOrNull(match["Est. TR"])), ROLLING_WINDOW);
+  const estTr = rollingParamColumnMean(matches, "Est. TR", ROLLING_WINDOW);
   const rankPoints: Array<number | null> = matches.map(() => null);
   const rankLabels: Array<string | null> = matches.map(() => null);
   let previousRank = "";
@@ -450,8 +451,7 @@ function signedRadarOptions(labels: string[], radialMax: number): Record<string,
 function buildNormalizedTrendGroup(matches: AnalysisBundle["matches"], dateLabels: string[], title: string, metrics: string[]): ChartConfig {
   const datasets: Array<Record<string, unknown>> = [];
   metrics.forEach((label) => {
-    const column = ABILITY_METRIC_COLUMNS[label]!;
-    const rolling = rollingMean(matches.map((match) => numberOrNull(match[column])), ROLLING_WINDOW);
+    const rolling = rollingMetricMean(matches, label, ROLLING_WINDOW);
     const base = rolling.find((value) => value !== null && value !== 0);
     if (base === null || base === undefined) {
       return;
@@ -467,6 +467,26 @@ function buildNormalizedTrendGroup(matches: AnalysisBundle["matches"], dateLabel
     data: { labels: dateLabels, datasets },
     options: baseOptions({ x: dateAxis(), y: axis("指数（初期ローリング平均=100）") }),
   }, [{ y: 100 }]), title);
+}
+
+function rollingMetricMean(matches: AnalysisBundle["matches"], label: string, window: number): Array<number | null> {
+  const column = ABILITY_METRIC_COLUMNS[label]!;
+  return rollingParamColumnMean(matches, column, window);
+}
+
+function rollingParamColumnMean(matches: AnalysisBundle["matches"], column: string, window: number): Array<number | null> {
+  if (!isDerivedMetricColumn(column)) {
+    return rollingMean(matches.map((match) => numberOrNull(match[column])), window);
+  }
+  return matches.map((_, index) => {
+    const start = Math.max(0, index - window + 1);
+    try {
+      const params = calculateAverageParams(matches.slice(start, index + 1));
+      return numberOrNull(params[column]);
+    } catch {
+      return null;
+    }
+  });
 }
 
 function buildMonthlyTrBand(matches: AnalysisBundle["matches"]): ChartConfig {
@@ -979,6 +999,10 @@ function maxAbsFinite(values: Array<number | null>): number {
 function numberOrNull(value: unknown): number | null {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function isDerivedMetricColumn(column: string): boolean {
+  return (BASE_PARAM_COLUMNS as readonly string[]).includes(column);
 }
 
 function pctOrNull(value: unknown): number | null {

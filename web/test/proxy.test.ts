@@ -120,4 +120,26 @@ describe("league-page proxy", () => {
 
     expect(response.status).toBe(200);
   });
+
+  it("streams the league summary upstream response without parsing it", async () => {
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe("https://ch.tetr.io/api/users/player/summaries/league");
+      const headers = new Headers(init?.headers);
+      expect(headers.get("User-Agent")).toBe(USER_AGENT);
+      expect(headers.get("X-Session-ID")).toBe("22222222-2222-2222-2222-222222222222");
+      return new Response(JSON.stringify({ success: true, data: { apm: 82.42 } }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await handleRequest(
+      new Request("http://worker.test/api/league-summary?username=player", {
+        headers: { "X-Session-ID": "22222222-2222-2222-2222-222222222222" },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe(JSON.stringify({ success: true, data: { apm: 82.42 } }));
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });

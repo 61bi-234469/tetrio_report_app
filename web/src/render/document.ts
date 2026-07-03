@@ -145,17 +145,17 @@ export function renderDocument(bundle: AnalysisBundle, options: RenderOptions = 
   const s = bundle.summary as any;
   const anon = createAnonymizer(Boolean(options.anonymize));
   const chartConfigs = buildChartConfigs(bundle, anon);
-  const title = `戦績分析レポート for TETR.IO — ${anon.subject(s.source.username)}`;
+  const title = `戦績レポート for TETR.IO — ${anon.subject(s.source.username)}`;
   const truncatedNotice = s.source.truncated
     ? `<div class="note-box">取得ページ数の上限に達したため、取得できた直近${s.source.rows.records}件で作成。</div>`
     : "";
   return [
     "<!doctype html>",
     `<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">`,
-    `<title>${htmlEscape(title)}</title><style>${REPORT_CSS}</style></head><body>`,
+    `<title>${htmlEscape(title)}</title><link rel="icon" href="data:,"><style>${REPORT_CSS}</style></head><body>`,
     `<a id="top"></a>`,
     `<div class="wrap">`,
-    `<header class="top"><h1>Tetra League 戦績分析レポート for TETR.IO</h1><div class="sub">${buildSubtitle(bundle, anon)}</div></header>`,
+    `<header class="top"><h1>戦績レポート for TETR.IO</h1><div class="sub">${buildSubtitle(bundle, anon)}</div></header>`,
     buildReportActions(bundle, anon),
     truncatedNotice,
     buildKpis(bundle),
@@ -179,7 +179,7 @@ export function renderDocument(bundle: AnalysisBundle, options: RenderOptions = 
 export function renderMessagePage(status: number, title: string, message: string): Response {
   const html = [
     "<!doctype html><html lang=\"ja\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">",
-    `<title>${htmlEscape(title)}</title><style>${REPORT_CSS}</style></head><body>`,
+    `<title>${htmlEscape(title)}</title><link rel="icon" href="data:,"><style>${REPORT_CSS}</style></head><body>`,
     `<div class="wrap"><main class="message"><h1>${htmlEscape(title)}</h1><p>${htmlEscape(message)}</p><a href="/">フォームへ戻る</a></main></div>`,
     "</body></html>",
   ].join("");

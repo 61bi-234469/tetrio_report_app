@@ -26,6 +26,8 @@ describe("report document", () => {
     // 30マッチ未満はPython版と同じく空（第12章の平面集計なし）。
     expect(bundle.summary.style_matchup_plane).toEqual({});
     const html = renderDocument(bundle);
+    expect(html).toContain("<title>戦績レポート for TETR.IO — your_username</title>");
+    expect(html).toContain("<h1>戦績レポート for TETR.IO</h1>");
     expect(html).toContain("01_tr_history");
     expect(html).toContain("29_session_decay");
     // 各チャートidは文書全体でちょうど1回だけ出現する（章＋付録の配置契約）。

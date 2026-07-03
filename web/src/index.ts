@@ -16,6 +16,29 @@ export interface Env {
   ASSETS: Fetcher;
 }
 
+const SECURITY_HEADERS: Record<string, string> = {
+  "Content-Security-Policy": [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data:",
+    "connect-src 'self' https://ch.tetr.io",
+    "font-src 'self'",
+    "object-src 'none'",
+    "base-uri 'none'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+  ].join("; "),
+  "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()",
+  "Referrer-Policy": "no-referrer",
+  "Strict-Transport-Security": "max-age=31536000",
+  "X-Content-Type-Options": "nosniff",
+};
+
+const PROXY_RATE_LIMIT_WINDOW_MS = 60_000;
+const PROXY_RATE_LIMIT_MAX_REQUESTS = 60;
+const proxyRateLimits = new Map<string, { count: number; resetAt: number }>();
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     return handleRequest(request, env);
@@ -23,6 +46,10 @@ export default {
 };
 
 export async function handleRequest(request: Request, env?: Env): Promise<Response> {
+  return withSecurityHeaders(await routeRequest(request, env));
+}
+
+async function routeRequest(request: Request, env?: Env): Promise<Response> {
   const url = new URL(request.url);
   if (request.method !== "GET") {
     return renderMessagePage(405, "Method Not Allowed", "GETでアクセスしてください。");
@@ -81,8 +108,15 @@ async function handleLeaguePage(url: URL, request: Request): Promise<Response> {
   const jsonError = (status: number, message: string) =>
     new Response(JSON.stringify({ error: message }), {
       status,
-      headers: { "content-type": "application/json; charset=utf-8" },
+      headers: jsonHeaders(),
     });
+  const rateLimit = consumeProxyRateLimit(request);
+  if (!rateLimit.allowed) {
+    return new Response(JSON.stringify({ error: "rate limit exceeded" }), {
+      status: 429,
+      headers: jsonHeaders({ "Retry-After": String(rateLimit.retryAfterSeconds) }),
+    });
+  }
   let username: string;
   try {
     username = validateUsername(url.searchParams.get("username") ?? "");
@@ -109,8 +143,64 @@ async function handleLeaguePage(url: URL, request: Request): Promise<Response> {
   });
   return new Response(response.body, {
     status: response.status,
-    headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
+    headers: jsonHeaders(),
   });
+}
+
+export function __resetProxyRateLimitForTests(): void {
+  proxyRateLimits.clear();
+}
+
+function withSecurityHeaders(response: Response): Response {
+  const headers = new Headers(response.headers);
+  for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
+    headers.set(name, value);
+  }
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
+function jsonHeaders(extra?: Record<string, string>): HeadersInit {
+  return {
+    "content-type": "application/json; charset=utf-8",
+    "cache-control": "no-store",
+    ...extra,
+  };
+}
+
+function consumeProxyRateLimit(request: Request): { allowed: true } | { allowed: false; retryAfterSeconds: number } {
+  const now = Date.now();
+  const key = proxyRateLimitKey(request);
+  const current = proxyRateLimits.get(key);
+  if (!current || current.resetAt <= now) {
+    proxyRateLimits.set(key, { count: 1, resetAt: now + PROXY_RATE_LIMIT_WINDOW_MS });
+    pruneProxyRateLimits(now);
+    return { allowed: true };
+  }
+  if (current.count >= PROXY_RATE_LIMIT_MAX_REQUESTS) {
+    return { allowed: false, retryAfterSeconds: Math.max(1, Math.ceil((current.resetAt - now) / 1000)) };
+  }
+  current.count += 1;
+  return { allowed: true };
+}
+
+function proxyRateLimitKey(request: Request): string {
+  const ip = request.headers.get("CF-Connecting-IP") ?? request.headers.get("X-Forwarded-For")?.split(",")[0]?.trim();
+  return ip || "local";
+}
+
+function pruneProxyRateLimits(now: number): void {
+  if (proxyRateLimits.size < 1000) {
+    return;
+  }
+  for (const [key, value] of proxyRateLimits.entries()) {
+    if (value.resetAt <= now) {
+      proxyRateLimits.delete(key);
+    }
+  }
 }
 
 function parseAnonymize(value: string | null): boolean {

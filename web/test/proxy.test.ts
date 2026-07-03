@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { USER_AGENT } from "../src/tetrio-api";
-import { handleRequest } from "../src/index";
+import { __resetProxyRateLimitForTests, handleRequest } from "../src/index";
 
 describe("league-page proxy", () => {
   afterEach(() => {
+    __resetProxyRateLimitForTests();
     vi.unstubAllGlobals();
   });
 
@@ -25,6 +26,7 @@ describe("league-page proxy", () => {
 
     expect(response.status).toBe(200);
     expect(await response.text()).toBe(JSON.stringify({ ok: 1 }));
+    expect(response.headers.get("cache-control")).toBe("no-store");
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -75,6 +77,30 @@ describe("league-page proxy", () => {
 
     expect(response.status).toBe(429);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("rate limits repeated proxy requests by client address", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ ok: 1 })));
+    vi.stubGlobal("fetch", fetchMock);
+
+    for (let i = 0; i < 60; i += 1) {
+      const response = await handleRequest(
+        new Request("http://worker.test/api/league-page?username=player", {
+          headers: { "CF-Connecting-IP": "203.0.113.10" },
+        }),
+      );
+      expect(response.status).toBe(200);
+    }
+
+    const limited = await handleRequest(
+      new Request("http://worker.test/api/league-page?username=player", {
+        headers: { "CF-Connecting-IP": "203.0.113.10" },
+      }),
+    );
+
+    expect(limited.status).toBe(429);
+    expect(limited.headers.get("Retry-After")).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledTimes(60);
   });
 
   it("replaces an invalid X-Session-ID with a generated UUID", async () => {

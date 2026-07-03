@@ -20,7 +20,7 @@ tetr.io の Tetra League 戦績を TETRA CHANNEL API から取得し、12章構�
 
 | レポート種別 | リンク |
 |---|---|
-| Web版 戦績レポート（300試合・匿名化版） | [サンプルを見る](https://raw.githack.com/61bi-234469/tetrio_report_app/develop/samples/sample_web_report.html) |
+| Web版 戦績レポート（300試合・匿名化版） | [サンプルを見る](https://htmlpreview.github.io/?https://github.com/61bi-234469/tetrio_report_app/blob/develop/samples/sample_web_report.html) |
 
 ---
 
@@ -76,8 +76,8 @@ Python版では、ツールが作る**①戦績レポート（本体）**に加�
 
 | レポート種別 | リンク |
 |---|---|
-| 旧Python版 ① 戦績レポート（本体） | [サンプルを見る](https://raw.githack.com/61bi-234469/tetrio_report_app/develop/samples/sample_report.html) |
-| 旧Python版 ② AI考察レポート（別紙・Python版のみ） | [サンプルを見る](https://raw.githack.com/61bi-234469/tetrio_report_app/develop/samples/sample_ai_report.html) |
+| 旧Python版 ① 戦績レポート（本体） | [サンプルを見る](https://htmlpreview.github.io/?https://github.com/61bi-234469/tetrio_report_app/blob/develop/samples/sample_report.html) |
+| 旧Python版 ② AI考察レポート（別紙・Python版のみ） | [サンプルを見る](https://htmlpreview.github.io/?https://github.com/61bi-234469/tetrio_report_app/blob/develop/samples/sample_ai_report.html) |
 
 | | ① 戦績レポート（本体） | ② AI考察レポート（別紙） |
 |---|---|---|

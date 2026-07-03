@@ -23,6 +23,7 @@ describe("report document", () => {
     expect(bundle.summary.drawdown).toHaveProperty("max");
     expect(bundle.summary.duration_by_result).toHaveProperty("win.mean");
     expect(bundle.summary.rank_journey).toHaveProperty("transitions");
+    expect(bundle.summary.current_league.available).toBe(false);
     // 30マッチ未満はPython版と同じく空（第12章の平面集計なし）。
     expect(bundle.summary.style_matchup_plane).toEqual({});
     const html = renderDocument(bundle);
@@ -30,6 +31,9 @@ describe("report document", () => {
     expect(html).toContain("<h1>戦績レポート for TETR.IO</h1>");
     expect(html).toContain("01_tr_history");
     expect(html).toContain("29_session_decay");
+    expect(html).toContain("summary API 由来の現在値");
+    expect(html).toContain("summary API 由来の現在値を取得不可");
+    expect(html).toContain("履歴分析の主要指標");
     // 各チャートidは文書全体でちょうど1回だけ出現する（章＋付録の配置契約）。
     for (const id of CHART_IDS) {
       const matches = html.match(new RegExp(`id="${id}"`, "g")) ?? [];

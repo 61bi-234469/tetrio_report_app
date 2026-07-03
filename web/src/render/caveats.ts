@@ -14,6 +14,7 @@ export type CaveatId =
   | "posthocMetric"
   | "normalized"
   | "aggregation"
+  | "summaryRecentSplit"
   | "binBoundary"
   | "privacy"
   | "replayExpiry";
@@ -59,6 +60,10 @@ export const CAVEATS: Record<CaveatId, Caveat> = {
   aggregation: {
     short: "集約値",
     full: "マッチ・セット平均のため、個別の開幕・盤面・入力ミス・相殺は識別できない。",
+  },
+  summaryRecentSplit: {
+    short: "現在値と履歴値",
+    full: "現在TL値はsummary API由来。直近窓は保存済みrecent records由来で、対象粒度・除外条件・キャッシュ時点が異なるため一致しない場合がある。",
   },
   binBoundary: {
     short: "ビン境界",

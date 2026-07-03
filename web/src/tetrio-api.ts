@@ -39,6 +39,26 @@ export interface FetchLeagueResult {
   truncated: boolean;
 }
 
+export interface FetchLeagueSummaryOptions {
+  fetcher?: FetchLike;
+  sessionId?: string;
+}
+
+export interface LeagueSummaryResult {
+  raw: {
+    apm: number | null;
+    pps: number | null;
+    vs: number | null;
+    tr: number | null;
+    glicko: number | null;
+    rd: number | null;
+    gameswon: number | null;
+    gamesplayed: number | null;
+    rank: string | null;
+  };
+  cachedUntil: number | null;
+}
+
 const STAT_FIELDS: Record<string, Array<string | string[]>> = {
   apm: ["apm"],
   pps: ["pps"],
@@ -205,6 +225,44 @@ export async function fetchAllLeagueRecords(
     cachedUntil: cachedUntilValues.length ? Math.min(...cachedUntilValues) : null,
     pageCount,
     truncated,
+  };
+}
+
+export async function fetchLeagueSummary(
+  usernameInput: string,
+  options: FetchLeagueSummaryOptions = {},
+): Promise<LeagueSummaryResult> {
+  const username = validateUsername(usernameInput);
+  const fetcher = options.fetcher ?? fetch;
+  const sessionId = options.sessionId ?? crypto.randomUUID();
+  const response = await requestTetrioApi(
+    `${BASE_URL}/users/${encodeURIComponent(username)}/summaries/league`,
+    {},
+    sessionId,
+    fetcher,
+  );
+  const payload = await response.json() as Record<string, unknown>;
+  const cachedUntil = normalizeCacheEpoch(nested(payload, "cache", "cached_until"));
+
+  if (!payload.success) {
+    const message = nested(payload, "error", "msg") ?? nested(payload, "error", "message");
+    throw new ApiError(404, String(message || "プレイヤーが見つかりません。"));
+  }
+
+  const data = isObject(payload.data) ? payload.data : {};
+  return {
+    raw: {
+      apm: numberOrNull(data.apm),
+      pps: numberOrNull(data.pps),
+      vs: numberOrNull(data.vs ?? data.vsscore),
+      tr: numberOrNull(data.tr),
+      glicko: numberOrNull(data.glicko),
+      rd: numberOrNull(data.rd),
+      gameswon: numberOrNull(data.gameswon),
+      gamesplayed: numberOrNull(data.gamesplayed),
+      rank: data.rank === undefined || data.rank === null ? null : String(data.rank),
+    },
+    cachedUntil,
   };
 }
 
@@ -503,6 +561,12 @@ function extractLeagueMetrics(record: Record<string, unknown>, playerId: string)
     rd_before: cell(before.rd),
     rd_after: cell(after.rd),
     rd_delta: metricDelta(before.rd, after.rd),
+    games_played_before: cell(before.gamesplayed),
+    games_played_after: cell(after.gamesplayed),
+    games_played_delta: metricDelta(before.gamesplayed, after.gamesplayed),
+    games_won_before: cell(before.gameswon),
+    games_won_after: cell(after.gameswon),
+    games_won_delta: metricDelta(before.gameswon, after.gameswon),
     league_rank_before: cell(before.rank),
     league_rank_after: cell(after.rank),
     placement_before: cell(before.placement),

@@ -13,6 +13,17 @@ describe("createProxyFetcher", () => {
     expect(String(calledUrl)).toContain("/api/league-page?username=foo&after=1%3A2%3A3");
   });
 
+  it("rewrites the league summary URL to the same-origin summary proxy endpoint", async () => {
+    const mock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response("{}"));
+    const fetcher = createProxyFetcher(mock as unknown as typeof fetch);
+
+    await fetcher("https://ch.tetr.io/api/users/foo/summaries/league");
+
+    expect(mock).toHaveBeenCalledTimes(1);
+    const [calledUrl] = mock.mock.calls[0]!;
+    expect(String(calledUrl)).toContain("/api/league-summary?username=foo");
+  });
+
   it("forwards X-Session-ID but never forwards User-Agent", async () => {
     const mock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response("{}"));
     const fetcher = createProxyFetcher(mock as unknown as typeof fetch);

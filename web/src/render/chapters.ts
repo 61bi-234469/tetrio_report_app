@@ -41,6 +41,22 @@ const ABILITY_METRICS = [
   "APM", "PPS", "VS", "APP", "DS/Second", "DS/Piece", "APP+DS/Piece",
   "VS/APM", "Cheese Index", "Garbage Eff.", "Area", "Est. TR",
 ];
+const CURRENT_DERIVED_METRICS: Array<[string, string]> = [
+  ["APP", "APP"],
+  ["DS/Second", "DS/Second"],
+  ["DS/Piece", "DS/Piece"],
+  ["VS/APM", "VS/APM"],
+  ["Garbage Eff.", "Garbage Effi."],
+  ["Cheese Index", "Cheese Index"],
+  ["Weighted APP", "Weighted APP"],
+  ["APP+DS/Piece", "APP+DS/Piece"],
+  ["Area", "Area"],
+  ["Est. TR", "Est. TR"],
+  ["Opener", "Opener"],
+  ["Plonk", "Plonk"],
+  ["Stride", "Stride"],
+  ["Inf DS", "Inf DS"],
+];
 
 function partDivider(num: number): string {
   const part = PART_AT.get(num);
@@ -95,6 +111,37 @@ function replayLink(value: unknown, anon: Anonymizer): string {
   }
   const href = `https://tetr.io/#R:${encodeURIComponent(id)}`;
   return `<a href="${htmlEscape(href)}" target="_blank" rel="noopener noreferrer">リプレイ</a>`;
+}
+
+function currentLeagueTable(currentLeague: Record<string, any>): string {
+  if (!currentLeague?.available) {
+    return block(
+      "summary API 由来の現在値を取得不可。履歴分析のみ表示。",
+      ["summaryRecentSplit"],
+      "summary APIを取得できない場合、recent records由来の直近値では代替しない。",
+    );
+  }
+  const raw = currentLeague.raw ?? {};
+  const derived = currentLeague.derived ?? {};
+  const rawRows = [
+    ["APM", metricFmt("APM", raw.APM)],
+    ["PPS", metricFmt("PPS", raw.PPS)],
+    ["VS", metricFmt("VS", raw.VS)],
+    ["TR", nfmt(raw.TR, 0, true)],
+    ["Glicko", nfmt(raw.Glicko, 0, true)],
+    ["RD", nfmt(raw.RD, 1)],
+    ["gameswon", nfmt(raw.gameswon, 0)],
+  ];
+  const derivedRows = CURRENT_DERIVED_METRICS.map(([label, key]) => [label, metricFmt(label, derived[key])]);
+  return [
+    table(["基礎値", "値"], rawRows, { minWidth: 420 }),
+    table(["派生指標", "値"], derivedRows, { minWidth: 520 }),
+    block(
+      `summary APIのAPM/PPS/VSから派生指標を再計算。Est. TRは${metricFmt("Est. TR", derived["Est. TR"])}。`,
+      ["derivedMetric", "summaryRecentSplit"],
+      "履歴分析の直近窓とは取得元が異なる。",
+    ),
+  ].join("");
 }
 
 // 直近50マッチ窓のマッチ後TR分位帯（P10/P50/P90）を bundle.matches から算出する。
@@ -214,18 +261,19 @@ export function renderChapters(bundle: AnalysisBundle, anon: Anonymizer): string
     metricFmt(m, mr[m].difference),
   ]);
   const strongest = maxBy(Object.entries(mr), ([, row]) => (num(row.difference) ?? -999))![0];
-  let c4 = chapterHeader(4, "能力バランス", "主要指標の分布と、相手平均に対する能力バランス。レーダーとスタイルは直近100マッチをマッチ単位で集計。");
+  let c4 = chapterHeader(4, "能力バランス", "summary API 由来の現在値と、履歴分析による能力バランス。レーダーとスタイルは保存済み recent records の直近100マッチをマッチ単位で集計。");
+  c4 += "<h3>summary API 由来の現在値</h3>" + currentLeagueTable(s.current_league ?? {});
   c4 += fig("02_metric_distributions", "主要指標分布");
   c4 += block(
     `平均APMは自分${nfmt(metrics.APM.self, 1)}・相手${nfmt(metrics.APM.opponent, 1)}、PPSは自分${nfmt(metrics.PPS.self, 2)}・相手${nfmt(metrics.PPS.opponent, 2)}、VSは自分${nfmt(metrics.VS.self, 1)}・相手${nfmt(metrics.VS.opponent, 1)}。相手平均との差が大きい軸の一つは${strongest}で、範囲の重なりが大きい指標は平均差があっても単独の勝敗判別力は限定的。`,
     ["aggregation"],
     "太帯=自分/細帯=相手のP10-P90、◆=自分の中央値、基準線100=相手中央値。",
   );
-  c4 += `<h3>能力レーダーと4プレイスタイル（${recentTag}）</h3>` + fig("03_capability_radar", "能力レーダー");
+  c4 += `<h3>能力レーダーと4プレイスタイル（履歴分析・${recentTag}）</h3>` + fig("03_capability_radar", "能力レーダー");
   c4 += block(
     `APPは${nfmt(mr.APP.self, 3)}対${nfmt(mr.APP.opponent, 3)}、GbEは${nfmt(mr["Garbage Eff."].self, 3)}対${nfmt(mr["Garbage Eff."].opponent, 3)}、PPSは${nfmt(mr.PPS.self, 2)}対${nfmt(mr.PPS.opponent, 2)}。`,
     ["normalized"],
-    `自分と相手平均の大きい方を1.0に正規化（${recentTag}）。負値は0参照円の内側。`,
+    `自分と相手平均の大きい方を1.0に正規化（履歴分析・${recentTag}）。負値は0参照円の内側。`,
   );
   c4 += fig("04_playstyle_radar", "4プレイスタイル");
   const srMeans = s.styles_recent.means as Record<string, any>;
@@ -233,9 +281,14 @@ export function renderChapters(bundle: AnalysisBundle, anon: Anonymizer): string
   c4 += block(
     `自分の最大値は${representative} ${nfmt(srMeans[representative].self, 2)}。Opener ${nfmt(srMeans.Opener.self, 2)}、Stride ${nfmt(srMeans.Stride.self, 2)}、Inf DS ${nfmt(srMeans["Inf DS"].self, 2)}、Plonk ${nfmt(srMeans.Plonk.self, 2)}。`,
     ["derivedMetric"],
-    `能力指標から推定したスタイル傾向（${recentTag}平均）。負値は0参照円の内側。`,
+    `能力指標から推定したスタイル傾向（履歴分析・${recentTag}平均）。負値は0参照円の内側。`,
   );
-  c4 += `<h3>主要指標（${recentTag}）</h3>` + table(["指標", "自分", "相手平均", "差"], metricRows, { minWidth: 620 });
+  c4 += `<h3>履歴分析の主要指標（${recentTag}）</h3>` + table(["指標", "自分", "相手平均", "差"], metricRows, { minWidth: 620 });
+  c4 += block(
+    "履歴分析の直近窓は保存済みrecent recordsから集計。",
+    ["summaryRecentSplit"],
+    "summary API 由来の現在値とは対象粒度・除外条件・キャッシュ時点が異なる。",
+  );
   parts.push(chapterSection(4, c4));
 
   // 第5章 勝敗に関係しやすい指標（A案: 相対能力差モデル表とAUC/Brier/log loss文言は除外）

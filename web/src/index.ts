@@ -7,6 +7,7 @@ import {
   USER_AGENT,
   convertToRoundRows,
   fetchAllLeagueRecords,
+  fetchLeagueSummary,
   validateUsername,
 } from "./tetrio-api";
 import { renderDocument, renderMessagePage } from "./render/document";
@@ -60,6 +61,9 @@ async function routeRequest(request: Request, env?: Env): Promise<Response> {
   if (url.pathname === "/api/league-page") {
     return handleLeaguePage(url, request);
   }
+  if (url.pathname === "/api/league-summary") {
+    return handleLeagueSummary(url, request);
+  }
   if (env?.ASSETS) {
     return env.ASSETS.fetch(assetRequest(request, url));
   }
@@ -74,9 +78,16 @@ async function handleReport(url: URL): Promise<Response> {
     const username = validateUsername(url.searchParams.get("username") ?? "");
     const maxMatches = parseMaxMatches(url.searchParams.get("max_matches"));
     const anonymize = parseAnonymize(url.searchParams.get("anonymize"));
+    const sessionId = crypto.randomUUID();
+    const summaryPromise = fetchLeagueSummary(username, { sessionId }).catch((error) => {
+      console.warn("league summary unavailable", error);
+      return null;
+    });
     const result = await fetchAllLeagueRecords(username, {
       maxMatches: maxMatches === "all" ? null : maxMatches,
+      sessionId,
     });
+    const leagueSummary = await summaryPromise;
     if (!result.records.length) {
       return renderMessagePage(200, "対戦履歴なし", "Tetra League対戦履歴がありません。");
     }
@@ -88,6 +99,7 @@ async function handleReport(url: URL): Promise<Response> {
       recordsCount: result.records.length,
       truncated: result.truncated,
       cachedUntil: result.cachedUntil,
+      leagueSummary,
     });
     return new Response(renderDocument(bundle, { anonymize }), {
       headers: {
@@ -105,6 +117,31 @@ async function handleReport(url: URL): Promise<Response> {
 }
 
 async function handleLeaguePage(url: URL, request: Request): Promise<Response> {
+  return handleTetrioProxy(url, request, (username) => {
+    const upstream = new URL(`${BASE_URL}/users/${encodeURIComponent(username)}/records/league/recent`);
+    upstream.searchParams.set("limit", String(PAGE_SIZE));
+    const after = url.searchParams.get("after");
+    if (after) {
+      upstream.searchParams.set("after", after);
+    }
+    return upstream;
+  }, validateLeaguePageParams);
+}
+
+async function handleLeagueSummary(url: URL, request: Request): Promise<Response> {
+  return handleTetrioProxy(
+    url,
+    request,
+    (username) => new URL(`${BASE_URL}/users/${encodeURIComponent(username)}/summaries/league`),
+  );
+}
+
+async function handleTetrioProxy(
+  url: URL,
+  request: Request,
+  upstreamFor: (username: string) => URL,
+  validateParams?: (url: URL) => Response | null,
+): Promise<Response> {
   const jsonError = (status: number, message: string) =>
     new Response(JSON.stringify({ error: message }), {
       status,
@@ -126,17 +163,13 @@ async function handleLeaguePage(url: URL, request: Request): Promise<Response> {
   if (!/^[a-z0-9_-]{1,32}$/.test(username)) {
     return jsonError(400, "ユーザー名の形式が不正です。");
   }
-  const after = url.searchParams.get("after");
-  if (after && !/^-?\d+(\.\d+)?:-?\d+(\.\d+)?:-?\d+(\.\d+)?$/.test(after)) {
-    return jsonError(400, "afterの形式が不正です。");
+  const paramError = validateParams?.(url);
+  if (paramError) {
+    return paramError;
   }
   const sessionHeader = request.headers.get("X-Session-ID") ?? "";
   const sessionId = /^[0-9a-fA-F-]{8,64}$/.test(sessionHeader) ? sessionHeader : crypto.randomUUID();
-  const upstream = new URL(`${BASE_URL}/users/${encodeURIComponent(username)}/records/league/recent`);
-  upstream.searchParams.set("limit", String(PAGE_SIZE));
-  if (after) {
-    upstream.searchParams.set("after", after);
-  }
+  const upstream = upstreamFor(username);
   // CPU予算(無料枠10ms)のため body は parse せずストリームで素通しする。
   const response = await fetch(upstream.toString(), {
     headers: { "User-Agent": USER_AGENT, "X-Session-ID": sessionId },
@@ -154,6 +187,17 @@ function assetRequest(request: Request, url: URL): Request {
   const indexUrl = new URL(request.url);
   indexUrl.pathname = "/index.html";
   return new Request(indexUrl, request);
+}
+
+function validateLeaguePageParams(url: URL): Response | null {
+  const after = url.searchParams.get("after");
+  if (after && !/^-?\d+(\.\d+)?:-?\d+(\.\d+)?:-?\d+(\.\d+)?$/.test(after)) {
+    return new Response(JSON.stringify({ error: "afterの形式が不正です。" }), {
+      status: 400,
+      headers: jsonHeaders(),
+    });
+  }
+  return null;
 }
 
 export function __resetProxyRateLimitForTests(): void {

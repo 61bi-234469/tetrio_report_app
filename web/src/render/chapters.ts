@@ -116,7 +116,7 @@ function replayLink(value: unknown, anon: Anonymizer): string {
 function currentLeagueTable(currentLeague: Record<string, any>): string {
   if (!currentLeague?.available) {
     return block(
-      "TetraStats 準拠の現在値を取得不可。履歴分析のみ表示。",
+      "summary API 由来の現在値を取得不可。履歴分析のみ表示。",
       ["summaryRecentSplit"],
       "summary APIを取得できない場合、recent records由来の直近値では代替しない。",
     );
@@ -137,7 +137,7 @@ function currentLeagueTable(currentLeague: Record<string, any>): string {
     table(["基礎値", "値"], rawRows, { minWidth: 420 }),
     table(["派生指標", "値"], derivedRows, { minWidth: 520 }),
     block(
-      `summary APIのAPM/PPS/VSからTetraStats由来式で再計算。Est. TRは${metricFmt("Est. TR", derived["Est. TR"])}。`,
+      `summary APIのAPM/PPS/VSから派生指標を再計算。Est. TRは${metricFmt("Est. TR", derived["Est. TR"])}。`,
       ["derivedMetric", "summaryRecentSplit"],
       "履歴分析の直近窓とは取得元が異なる。",
     ),
@@ -261,8 +261,8 @@ export function renderChapters(bundle: AnalysisBundle, anon: Anonymizer): string
     metricFmt(m, mr[m].difference),
   ]);
   const strongest = maxBy(Object.entries(mr), ([, row]) => (num(row.difference) ?? -999))![0];
-  let c4 = chapterHeader(4, "能力バランス", "主要指標の分布と、相手平均に対する能力バランス。レーダーとスタイルは直近100マッチをマッチ単位で集計。");
-  c4 += "<h3>TetraStats 準拠の現在値</h3>" + currentLeagueTable(s.current_league ?? {});
+  let c4 = chapterHeader(4, "能力バランス", "summary API 由来の現在値と、履歴分析による能力バランス。レーダーとスタイルは保存済み recent records の直近100マッチをマッチ単位で集計。");
+  c4 += "<h3>summary API 由来の現在値</h3>" + currentLeagueTable(s.current_league ?? {});
   c4 += fig("02_metric_distributions", "主要指標分布");
   c4 += block(
     `平均APMは自分${nfmt(metrics.APM.self, 1)}・相手${nfmt(metrics.APM.opponent, 1)}、PPSは自分${nfmt(metrics.PPS.self, 2)}・相手${nfmt(metrics.PPS.opponent, 2)}、VSは自分${nfmt(metrics.VS.self, 1)}・相手${nfmt(metrics.VS.opponent, 1)}。相手平均との差が大きい軸の一つは${strongest}で、範囲の重なりが大きい指標は平均差があっても単独の勝敗判別力は限定的。`,
@@ -287,7 +287,7 @@ export function renderChapters(bundle: AnalysisBundle, anon: Anonymizer): string
   c4 += block(
     "履歴分析の直近窓は保存済みrecent recordsから集計。",
     ["summaryRecentSplit"],
-    "TetraStats 準拠の現在値とは対象粒度・除外条件・キャッシュ時点が異なる。",
+    "summary API 由来の現在値とは対象粒度・除外条件・キャッシュ時点が異なる。",
   );
   parts.push(chapterSection(4, c4));
 

@@ -32,7 +32,7 @@ describe("worker endpoint", () => {
     expect(html).toContain("const CHART_CONFIGS=");
     expect(html).toContain("01_tr_history");
     expect(html).toContain("29_session_decay");
-    expect(html).toContain("TetraStats 準拠の現在値");
+    expect(html).toContain("summary API 由来の現在値");
     expect(html).toContain("現在TR（summary）");
     expect(html).toContain("TETR.IO / osk");
   });

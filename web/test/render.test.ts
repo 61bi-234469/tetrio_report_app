@@ -31,8 +31,8 @@ describe("report document", () => {
     expect(html).toContain("<h1>戦績レポート for TETR.IO</h1>");
     expect(html).toContain("01_tr_history");
     expect(html).toContain("29_session_decay");
-    expect(html).toContain("TetraStats 準拠の現在値");
-    expect(html).toContain("TetraStats 準拠の現在値を取得不可");
+    expect(html).toContain("summary API 由来の現在値");
+    expect(html).toContain("summary API 由来の現在値を取得不可");
     expect(html).toContain("履歴分析の主要指標");
     // 各チャートidは文書全体でちょうど1回だけ出現する（章＋付録の配置契約）。
     for (const id of CHART_IDS) {

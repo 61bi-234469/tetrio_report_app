@@ -87,6 +87,22 @@ export interface Summary {
   recent_windows: Array<Record<string, unknown>>;
   metrics: Record<string, Record<string, number | null>>;
   metrics_recent: Record<string, Record<string, number | null>>;
+  current_league: {
+    source: "summaries/league";
+    available: boolean;
+    raw: {
+      APM: number | null;
+      PPS: number | null;
+      VS: number | null;
+      TR: number | null;
+      Glicko: number | null;
+      RD: number | null;
+      gameswon: number | null;
+      gamesplayed: number | null;
+      rank: string | null;
+    };
+    derived: Record<string, number | null>;
+  };
   recent_scope: Record<string, number>;
   growth_window_n: number;
   growth: Record<string, unknown>;

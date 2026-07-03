@@ -7,11 +7,20 @@ describe("worker endpoint", () => {
   });
 
   it("builds a self-contained report from mocked TETR.IO records", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
-      success: true,
-      cache: { cached_until: 1_800_000_000 },
-      data: { entries: [record("m1", "2026-07-01T00:00:00.000Z", 2, 1), record("m2", "2026-07-02T00:00:00.000Z", 1, 2)] },
-    }))));
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      if (url.includes("/summaries/league")) {
+        return new Response(JSON.stringify({
+          success: true,
+          cache: { cached_until: 1_800_000_000 },
+          data: { apm: 82.42, pps: 1.78, vs: 164.68, tr: 20447.864, glicko: 2283.487, rd: 60.48, gameswon: 1973, rank: "x" },
+        }));
+      }
+      return new Response(JSON.stringify({
+        success: true,
+        cache: { cached_until: 1_800_000_000 },
+        data: { entries: [record("m1", "2026-07-01T00:00:00.000Z", 2, 1), record("m2", "2026-07-02T00:00:00.000Z", 1, 2)] },
+      }));
+    }));
 
     const response = await handleRequest(new Request("http://worker.test/api/report?username=player&max_matches=2"));
     const html = await response.text();
@@ -23,6 +32,8 @@ describe("worker endpoint", () => {
     expect(html).toContain("const CHART_CONFIGS=");
     expect(html).toContain("01_tr_history");
     expect(html).toContain("29_session_decay");
+    expect(html).toContain("TetraStats 準拠の現在値");
+    expect(html).toContain("現在TR（summary）");
     expect(html).toContain("TETR.IO / osk");
   });
 });

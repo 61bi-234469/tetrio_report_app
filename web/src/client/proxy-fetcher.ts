@@ -2,13 +2,15 @@ export function createProxyFetcher(baseFetch: typeof fetch = fetch): typeof fetc
   return (async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const source = new URL(String(input));
     // /users/{username}/records/league/recent → /api/league-page
-    const match = source.pathname.match(/^\/api\/users\/([^/]+)\/records\/league\/recent$/);
+    const recordsMatch = source.pathname.match(/^\/api\/users\/([^/]+)\/records\/league\/recent$/);
+    const summaryMatch = source.pathname.match(/^\/api\/users\/([^/]+)\/summaries\/league$/);
+    const match = recordsMatch ?? summaryMatch;
     if (!match) {
       throw new Error(`unexpected TETR.IO API path: ${source.pathname}`);
     }
-    const proxied = new URL("/api/league-page", globalThis.location?.href ?? "http://localhost/");
+    const proxied = new URL(recordsMatch ? "/api/league-page" : "/api/league-summary", globalThis.location?.href ?? "http://localhost/");
     proxied.searchParams.set("username", decodeURIComponent(match[1]!));
-    const after = source.searchParams.get("after");
+    const after = recordsMatch ? source.searchParams.get("after") : null;
     if (after) {
       proxied.searchParams.set("after", after);
     }

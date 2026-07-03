@@ -1,6 +1,6 @@
 import { analyzeReport } from "../analysis/analyze";
 import { enrichRowsWithParams } from "../params";
-import { ApiError, convertToRoundRows, fetchAllLeagueRecords, validateUsername } from "../tetrio-api";
+import { ApiError, convertToRoundRows, fetchAllLeagueRecords, fetchLeagueSummary, validateUsername } from "../tetrio-api";
 import { renderDocument } from "../render/document";
 import type { DataRow, RoundRow } from "../analysis/types";
 import { createProxyFetcher } from "./proxy-fetcher";
@@ -52,12 +52,20 @@ function main(): void {
       const anonymizeInput = form!.querySelector<HTMLInputElement>('input[name="anonymize"]');
       const anonymize = Boolean(anonymizeInput?.checked);
 
+      const fetcher = createProxyFetcher();
+      const sessionId = crypto.randomUUID();
+      const summaryPromise = fetchLeagueSummary(username, { fetcher, sessionId }).catch((error) => {
+        console.warn("league summary unavailable", error);
+        return null;
+      });
       const result = await fetchAllLeagueRecords(username, {
-        fetcher: createProxyFetcher(),
+        fetcher,
         maxMatches,
         maxPages: 200,
+        sessionId,
         onPage: (info) => showProgress(`ページ${info.pageCount}を取得（${info.records}マッチ）…`),
       });
+      const leagueSummary = await summaryPromise;
 
       if (!result.records.length) {
         showProgress("対戦履歴なし：Tetra League対戦履歴がありません。", true);
@@ -74,6 +82,7 @@ function main(): void {
         recordsCount: result.records.length,
         truncated: result.truncated,
         cachedUntil: result.cachedUntil,
+        leagueSummary,
       });
       const html = renderDocument(bundle, { anonymize });
       document.open();

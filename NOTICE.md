@@ -13,5 +13,4 @@ The TETRA CHANNEL API is provided by TETR.IO. This tool reads public Tetra
 League data through `https://ch.tetr.io/api/` and does not use the main game
 API at `https://tetr.io/api/`.
 
-Direct Python dependency license summaries are listed in
-`THIRD_PARTY_NOTICES.md`.
+Direct dependency license summaries are listed in `THIRD_PARTY_NOTICES.md`.

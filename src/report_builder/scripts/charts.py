@@ -426,6 +426,7 @@ def chart_tr_gap(bundle: AnalysisBundle, out: Path) -> None:
 
 
 def chart_tr_monthly_stability(bundle: AnalysisBundle, out: Path) -> None:
+    window = 50
     m = bundle.matches.dropna(subset=["played_at_jst", "tr_after"]).copy()
     fig, ax = plt.subplots(figsize=(10.8, 4.8))
     if len(m):
@@ -434,42 +435,38 @@ def chart_tr_monthly_stability(bundle: AnalysisBundle, out: Path) -> None:
             played_at = played_at.dt.tz_convert("Asia/Tokyo").dt.tz_localize(None)
         m["played_at_jst"] = played_at
         m = m.dropna(subset=["played_at_jst", "tr_after"]).sort_values("played_at_jst")
-        m["month"] = m["played_at_jst"].dt.to_period("M").dt.to_timestamp()
-        monthly = (
-            m.groupby("month")["tr_after"]
-            .agg(
-                p10=lambda s: float(s.quantile(0.1)),
-                p50=lambda s: float(s.quantile(0.5)),
-                p90=lambda s: float(s.quantile(0.9)),
-                n="count",
-            )
-            .reset_index()
-        )
-        if len(monthly):
+        rolling = m["tr_after"].rolling(window=window, min_periods=1)
+        band = pd.DataFrame({
+            "played_at_jst": m["played_at_jst"],
+            "p10": rolling.quantile(0.1).to_numpy(),
+            "p50": rolling.quantile(0.5).to_numpy(),
+            "p90": rolling.quantile(0.9).to_numpy(),
+        })
+        if len(band):
             ax.fill_between(
-                monthly["month"], monthly["p10"], monthly["p90"],
-                color="#6366f1", alpha=0.18, label="P10-P90", zorder=1,
+                band["played_at_jst"], band["p10"], band["p90"],
+                color="#6366f1", alpha=0.18, label=f"P10-P90（直近{window}マッチ）", zorder=1,
             )
             ax.plot(
-                monthly["month"], monthly["p50"],
-                color="#4f46e5", marker="o", markersize=3.8, linewidth=1.9,
+                band["played_at_jst"], band["p50"],
+                color="#4f46e5", linewidth=1.9,
                 label="P50", zorder=3,
             )
             ax.plot(
-                monthly["month"], monthly["p10"],
+                band["played_at_jst"], band["p10"],
                 color="#64748b", linestyle="--", linewidth=1.15,
                 label="P10", zorder=2,
             )
             ax.plot(
-                monthly["month"], monthly["p90"],
+                band["played_at_jst"], band["p90"],
                 color="#8b5cf6", linestyle="--", linewidth=1.15,
                 label="P90", zorder=2,
             )
-            _set_padded_ylim(ax, pd.concat([monthly["p10"], monthly["p90"]], ignore_index=True), pad_ratio=0.08)
-            if len(monthly) == 1:
-                center = monthly.loc[0, "month"]
-                ax.set_xlim(center - pd.Timedelta(days=15), center + pd.Timedelta(days=15))
-    ax.set_title("TR推移：月次TRの分位帯")
+            _set_padded_ylim(ax, pd.concat([band["p10"], band["p90"]], ignore_index=True), pad_ratio=0.08)
+            if len(band) == 1:
+                center = band.loc[0, "played_at_jst"]
+                ax.set_xlim(center - pd.Timedelta(days=1), center + pd.Timedelta(days=1))
+    ax.set_title(f"TR推移：マッチ単位TR分位帯（直近{window}マッチ）")
     ax.set_ylabel("TR")
     ax.grid(alpha=0.25)
     handles, labels = ax.get_legend_handles_labels()
@@ -477,7 +474,7 @@ def chart_tr_monthly_stability(bundle: AnalysisBundle, out: Path) -> None:
         ax.legend(handles, labels, loc="upper center", bbox_to_anchor=(0.5, -0.2),
                   ncol=min(len(handles), 4), frameon=False, fontsize=9)
     ax.xaxis.set_major_locator(mdates.AutoDateLocator(minticks=5, maxticks=10))
-    ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m"))
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
     fig.autofmt_xdate()
     fig.tight_layout(rect=(0, 0.08, 1, 1))
     save(fig, out / "07_tr_monthly_stability.png")
@@ -502,18 +499,22 @@ def chart_drawdown(bundle: AnalysisBundle, out: Path) -> None:
 
 def chart_streaks(bundle: AnalysisBundle, out: Path) -> None:
     s = bundle.summary["streaks"]
-    max_len = max(s["max_win"], s["max_loss"], 1)
-    lengths = np.arange(1, max_len + 1)
-    win_counts = [s["win_runs"].count(int(x)) for x in lengths]
-    loss_counts = [s["loss_runs"].count(int(x)) for x in lengths]
+    lengths = np.arange(1, 11)
+    labels = [str(x) for x in range(1, 10)] + ["10以上"]
+
+    def count_runs(runs: list[int], length: int) -> int:
+        return sum(1 for run in runs if (run >= 10 if length == 10 else run == length))
+
+    win_counts = [count_runs(s["win_runs"], int(x)) for x in lengths]
+    loss_counts = [count_runs(s["loss_runs"], int(x)) for x in lengths]
     fig, ax = plt.subplots(figsize=(9.0, 4.5))
     width = 0.38
     ax.bar(lengths - width / 2, win_counts, width, label="連勝")
     ax.bar(lengths + width / 2, loss_counts, width, label="連敗")
-    ax.set_title("連勝・連敗の長さ分布")
-    ax.set_xlabel("連勝・連敗マッチ数")
-    ax.set_ylabel("発生回数")
-    ax.set_xticks(lengths)
+    ax.set_title("セッション内の最大連勝・最大連敗分布")
+    ax.set_xlabel("セッション内の最大連勝・最大連敗マッチ数")
+    ax.set_ylabel("セッション数")
+    ax.set_xticks(lengths, labels)
     ax.legend(frameon=False)
     ax.grid(axis="y", alpha=0.25)
     save(fig, out / "14_streak_distribution.png")
@@ -584,7 +585,7 @@ def chart_style_matchup_plane(bundle: AnalysisBundle, out: Path) -> None:
         ax.legend(frameon=False, fontsize=9, loc="best")
     sp = p.get("self_pos", {})
     if sp.get("x") is not None and sp.get("y") is not None:
-        ax.scatter([sp["x"]], [sp["y"]], marker="*", s=360, color="#111827",
+        ax.scatter([sp["x"]], [sp["y"]], marker="D", s=170, color="#111827",
                    edgecolors="#ffffff", linewidths=0.8, zorder=5)
         ax.annotate("自分の平均スタイル位置", (sp["x"], sp["y"]), xytext=(10, -14),
                     textcoords="offset points", fontsize=9, color="#111827",

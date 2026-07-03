@@ -67,7 +67,7 @@ DATA_MAP_LEGACY = """### データマップ（添付JSONの主な集計項目）
 - 接戦・決着局面: `score_states`（同点・リード・ビハインド・各MP）、`tiebreak`（経路と指標変化）
 - 逆転・ビハインド展開: `comeback`（第1ラウンド勝敗別、最大ビハインド別、逆転件数）
 - ラウンド展開とマッチ時間: `duration_bins`・`duration_by_result`（決着時間別）
-- 連戦の流れ: `streaks`（連勝後・連敗後・3連敗以降。すべてマッチ単位）、`streak_states`（段階別の勝率・期待超過・能力指標差）、`session_positions`、`session_decay`
+- 連戦の流れ: `streaks`（セッション内の最大連勝・最大連敗、1〜9と10以上）、`streak_states`（セッション内の直前段階別。1〜3連勝/連敗、4連勝以上、4連敗以上）、`session_positions`、`session_decay`
 - 次に見るべきリプレイ条件: 上記各章の勝率差・期待超過・能力差が分かれる区分
 - セッション定義: `session_definition`（前マッチ完了直後から次マッチ開始まで10分以内なら同一セッション。マッチ完了時刻はラウンド時間から推定）
 - セッション内のマッチ位置: `session_positions`（1マッチ目〜11マッチ目以降。位置はマッチ単位）

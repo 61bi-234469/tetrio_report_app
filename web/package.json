@@ -1,0 +1,24 @@
+{
+  "name": "league-report-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:client": "node build-client.mjs",
+    "dev": "npm run build:client && wrangler dev",
+    "typecheck": "tsc --noEmit && tsc -p src/client --noEmit",
+    "test": "vitest run",
+    "check": "npm run typecheck && npm run build:client && npm run test"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260701.0",
+    "@types/node": "^26.1.0",
+    "esbuild": "^0.28.1",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4",
+    "wrangler": "^4.23.0"
+  },
+  "dependencies": {
+    "chart.js": "^4.5.0"
+  }
+}

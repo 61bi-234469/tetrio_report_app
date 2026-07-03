@@ -473,36 +473,32 @@ def build_match_df(rounds: pd.DataFrame, session_gap_minutes: int = DEFAULT_SESS
     else:
         matches["opponent_style"] = "Unknown"
 
-    # 直前結果と連勝・連敗状態。
-    matches["previous_won"] = matches["won"].shift(1)
-    streak_before = []
-    current_sign = None
-    current_len = 0
-    for won in matches["won"].tolist():
-        streak_before.append(current_len if current_sign is not None else 0)
-        sign = bool(won)
-        if sign == current_sign:
-            current_len += 1
-        else:
-            current_sign = sign
-            current_len = 1
-    # 正は連勝中、負は連敗中。
-    signed = []
+    # 直前結果と連勝・連敗状態。同一セッション内だけで継続し、セッション先頭でリセットする。
     previous = None
+    previous_session = None
     run = 0
-    for won in matches["won"].shift(1):
-        if pd.isna(won):
-            signed.append(0)
+    previous_won: list[Any] = []
+    signed: list[int] = []
+    for _, row in matches.iterrows():
+        session_id = row.get("session_id")
+        if previous_session is None or session_id != previous_session:
             previous = None
             run = 0
-            continue
-        sign = bool(won)
-        if sign == previous:
+        if previous is None:
+            previous_won.append(np.nan)
+            signed.append(0)
+        else:
+            previous_won.append(previous)
+            signed.append(run if previous else -run)
+        sign = bool(row["won"])
+        if previous is not None and sign == previous:
             run += 1
         else:
-            previous = sign
             run = 1
-        signed.append(run if sign else -run)
+        previous = sign
+        previous_session = session_id
+    # 正は連勝中、負は連敗中。
+    matches["previous_won"] = previous_won
     matches["streak_before"] = signed
     return matches
 
@@ -1154,7 +1150,12 @@ def analyze_csv(
                 "excess": float(g["won"].mean() - g["expected_win"].mean()),
             })
 
-    win_runs, loss_runs = _run_lengths(completed["won"].tolist())
+    win_runs: list[int] = []
+    loss_runs: list[int] = []
+    for _, g in completed.groupby("session_id", sort=True):
+        wins, losses = _run_lengths(g.sort_values(["played_at_jst", "match_number"])["won"].astype(bool).tolist())
+        win_runs.append(max(wins, default=0))
+        loss_runs.append(max(losses, default=0))
     streaks = {
         "max_win": max(win_runs, default=0), "max_loss": max(loss_runs, default=0),
         "win_runs": win_runs, "loss_runs": loss_runs,
@@ -1195,13 +1196,15 @@ def analyze_csv(
     base_vs = float(completed["vs"].mean()) if "vs" in completed else float("nan")
     base_area = float(completed["Area"].mean()) if "Area" in completed else float("nan")
     streak_state_defs = [
-        ("3連勝以降", lambda s: s >= 3),
+        ("4連勝以上", lambda s: s >= 4),
+        ("3連勝", lambda s: s == 3),
         ("2連勝", lambda s: s == 2),
         ("1連勝", lambda s: s == 1),
         ("初戦", lambda s: s == 0),
         ("1連敗", lambda s: s == -1),
         ("2連敗", lambda s: s == -2),
-        ("3連敗以降", lambda s: s <= -3),
+        ("3連敗", lambda s: s == -3),
+        ("4連敗以上", lambda s: s <= -4),
     ]
     streak_states = []
     for label, cond in streak_state_defs:

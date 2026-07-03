@@ -134,7 +134,7 @@ function buildFooter(bundle: AnalysisBundle, anon: Anonymizer): string {
     "<p>APP = APM/(PPS×60)、DS/S = VS/100 － APM/60、DS/P = DS/S ÷ PPS、GbE = (APP×DS/S/PPS)×2、Area は同じ入力列から再計算、4スタイル値（Opener/Stride/Inf DS/Plonk）・Est. TR は入力の派生指標列を使用。VS/APM は VS÷APM（APM=0は欠損）。</p>",
     "<p><b>期待勝率</b>：対戦前Glickoと相手RDから標準Glicko期待スコアを算出。表のnは通常勝敗のマッチ数、期待勝率はGlicko/RD欠損を除いたマッチ数を分母にする。TETR.IO内部のTR計算を再現するものではない。</p>",
     `<p><b>因果の注意</b>：各図の解釈上の限界は<a href="#notes">注意事項（全図共通）</a>にまとめた。</p>`,
-    "<p><b>データ処理</b>：TetraStats 準拠の現在値はTETRA CHANNEL summaries/league、履歴分析はrecent recordsから生成。マッチ単位へは、勝敗・TR・Glicko/RD・スコアはマッチの代表値、能力指標はラウンド平均で集計。DQ勝（dqvictory）・DQ負（dqdefeat）・無効（nullified）は参照可能な区分として通常勝敗分析から分離する。Glicko/RD欠損マッチは期待勝率分析から除外。APIレスポンスはリプレイや盤面の個別状態を含まないため、開幕・盤面・相殺・入力ミス・回線状態は識別できない。</p>",
+    "<p><b>データ処理</b>：現在値はTETRA CHANNEL summaries/league、履歴分析はrecent recordsから生成。マッチ単位へは、勝敗・TR・Glicko/RD・スコアはマッチの代表値、能力指標はラウンド平均で集計。DQ勝（dqvictory）・DQ負（dqdefeat）・無効（nullified）は参照可能な区分として通常勝敗分析から分離する。Glicko/RD欠損マッチは期待勝率分析から除外。APIレスポンスはリプレイや盤面の個別状態を含まないため、開幕・盤面・相殺・入力ミス・回線状態は識別できない。</p>",
     `<p><b>帰属</b>：本レポートは非公式ツールで生成。TETR.IO / osk とは無関係。"TETR.IO" は権利者の商標。Est. TR、4スタイル値、Cheese Indexなどの派生指標は<a href="https://github.com/dan63047/TetraStats">TetraStats</a>由来の計算式を使用。生成ツールは<a href="https://github.com/61bi-234469/tetrio_report_app">MITライセンスで公開</a>。${name} の公開Tetra Leagueデータから生成。</p>`,
     `<p class="muted">生成日 ${date}（JST）／ 自己完結HTML・外部依存なし。グラフはChart.jsでcanvasに描画。</p>`,
     "</footer>",

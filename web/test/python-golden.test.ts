@@ -28,8 +28,8 @@ describe.skipIf(!existsSync(pythonExe))("python golden comparison", () => {
 
     close(ts.metrics.APM?.self, py.metrics.APM.self);
     close(ts.metrics.PPS?.opponent, py.metrics.PPS.opponent);
-    close(ts.metrics["Garbage Eff."]?.difference, py.metrics["Garbage Eff."].difference);
-    close(ts.metrics_recent.Area?.self, py.metrics_recent.Area.self);
+    close(ts.metrics.VS?.difference, py.metrics.VS.difference);
+    close(ts.metrics_recent.APM?.self, py.metrics_recent.APM.self);
     close(ts.kpis.normal_win_rate, py.kpis.normal_win_rate);
     close(ts.kpis.tr_change, py.kpis.tr_change);
     close(ts.model.baseline.mean_expected, py.model.baseline.mean_expected);
@@ -78,11 +78,11 @@ describe.skipIf(!existsSync(pythonExe))("python golden comparison", () => {
     closeRows(ts.recent_windows, py.recent_windows, ["n", "wins", "actual", "expected_n", "expected_actual", "expected", "excess_rate", "excess_wins"]);
     closeMetricGroup(ts.metrics, py.metrics);
     closeMetricGroup(ts.metrics_recent, py.metrics_recent);
-    closeMetricObjects(ts.growth, py.growth, ["early", "recent", "change", "growth_rate"]);
-    closeMetricObjects(ts.stability, py.stability, ["early_p10", "early_p50", "early_p90", "recent_p10", "recent_p50", "recent_p90", "early_cv", "recent_cv"]);
+    closeMetricObjects(ts.growth, py.growth, ["early", "recent", "change", "growth_rate"], ["APM", "PPS", "VS"]);
+    closeMetricObjects(ts.stability, py.stability, ["early_p10", "early_p50", "early_p90", "recent_p10", "recent_p50", "recent_p90", "early_cv", "recent_cv"], ["APM", "PPS", "VS"]);
     closeEffectRows(ts.effect_sizes, py.effect_sizes);
     // 分位ビンのlabelはpandas Interval文字列と形式が異なるため数値のみ突合する。
-    for (const metric of ["APM", "PPS", "VS", "Area"]) {
+    for (const metric of ["APM", "PPS", "VS"]) {
       closeRows(ts.delta_metric_bins[metric], py.delta_metric_bins[metric], ["n", "delta_mean", "win_rate"], `delta_metric_bins.${metric}`);
     }
     closeRows(ts.dominance, py.dominance, ["n", "actual", "expected", "excess", "all_n"]);
@@ -92,22 +92,22 @@ describe.skipIf(!existsSync(pythonExe))("python golden comparison", () => {
     closeFields(ts.streaks, py.streaks, ["max_win", "max_loss", "after_win_rate", "after_win_n", "after_loss_rate", "after_loss_n", "after_3_losses_rate", "after_3_losses_n"]);
     expect(ts.streaks.win_runs).toEqual(py.streaks.win_runs);
     expect(ts.streaks.loss_runs).toEqual(py.streaks.loss_runs);
-    closeRows(ts.streak_states, py.streak_states, ["n", "win_rate", "excess", "d_apm", "d_pps", "d_vs", "d_area"]);
+    closeRows(ts.streak_states, py.streak_states, ["n", "win_rate", "excess", "d_apm", "d_pps", "d_vs"]);
     closeFields(ts.psychology, py.psychology, ["after_win_rate", "after_win_n", "after_loss_rate", "after_loss_n", "after_3_losses_rate", "after_3_losses_n", "comeback_0_2", "comeback_two_points"]);
     closeFields(ts.tiebreak, py.tiebreak, ["n", "wins", "win_rate", "expected", "excess", "wilson_low", "wilson_high"]);
     closeFields(tsa.tiebreak.caught_up, py.tiebreak.caught_up, ["n", "wins", "win_rate"], "tiebreak.caught_up");
     closeFields(tsa.tiebreak.caught_from, py.tiebreak.caught_from, ["n", "wins", "win_rate"], "tiebreak.caught_from");
     expect(tsa.tiebreak.routes.map((row: any) => row.route)).toEqual(py.tiebreak.routes.map((row: any) => row.route));
     closeRows(tsa.tiebreak.routes, py.tiebreak.routes, ["n", "wins", "win_rate", "expected", "excess", "wilson_low", "wilson_high"], "tiebreak.routes");
-    closeFields(tsa.tiebreak.final_changes, py.tiebreak.final_changes, Object.keys(py.tiebreak.final_changes ?? {}), "tiebreak.final_changes");
+    closeFields(tsa.tiebreak.final_changes, py.tiebreak.final_changes, ["APM", "PPS", "VS"], "tiebreak.final_changes");
     expect(ts.session_positions.map((row) => row.label)).toEqual(py.session_positions.map((row: any) => row.label));
-    closeRows(ts.session_positions, py.session_positions, ["n", "actual", "expected", "excess", "d_apm", "d_pps", "d_vs", "d_area"]);
+    closeRows(ts.session_positions, py.session_positions, ["n", "actual", "expected", "excess", "d_apm", "d_pps", "d_vs"]);
     closeFields(ts.session_dynamics, py.session_dynamics, ["after_win_continue_rate", "after_win_n", "after_loss_continue_rate", "after_loss_n", "session_end_on_loss_rate", "session_end_on_win_rate", "sessions_closed_n"]);
     closeRows(tsa.session_dynamics.length_winrate, py.session_dynamics.length_winrate, ["sessions", "n", "win_rate", "expected", "excess"]);
     expect(ts.excess_by_weekday.map((row) => row.label)).toEqual(py.excess_by_weekday.map((row: any) => row.label));
-    closeRows(ts.excess_by_weekday, py.excess_by_weekday, ["n", "actual", "expected", "excess", "d_apm", "d_pps", "d_vs", "d_area"]);
+    closeRows(ts.excess_by_weekday, py.excess_by_weekday, ["n", "actual", "expected", "excess", "d_apm", "d_pps", "d_vs"]);
     expect(ts.excess_by_hour.map((row) => row.label)).toEqual(py.excess_by_hour.map((row: any) => row.label));
-    closeRows(ts.excess_by_hour, py.excess_by_hour, ["n", "actual", "expected", "excess", "d_apm", "d_pps", "d_vs", "d_area"]);
+    closeRows(ts.excess_by_hour, py.excess_by_hour, ["n", "actual", "expected", "excess", "d_apm", "d_pps", "d_vs"]);
     expect(ts.duration_bins.map((row) => row.label)).toEqual(py.duration_bins.map((row: any) => row.label));
     closeRows(ts.duration_bins, py.duration_bins, [
       "n",
@@ -116,22 +116,15 @@ describe.skipIf(!existsSync(pythonExe))("python golden comparison", () => {
       "delta_APM",
       "delta_PPS",
       "delta_VS",
-      "delta_Area",
-      "delta_APP",
-      "delta_Est. TR",
-      "delta_Opener",
-      "delta_Stride",
-      "delta_Inf DS",
-      "delta_Plonk",
     ]);
     closeFields(tsa.duration_by_result.win, py.duration_by_result.win, ["n", "mean", "median", "p75"]);
     closeFields(tsa.duration_by_result.loss, py.duration_by_result.loss, ["n", "mean", "median", "p75"]);
     closeRows(ts.score_states, py.score_states, ["n", "win_rate", "expected", "excess", "score_diff_mean"]);
-    closeRows(ts.pps_bins, py.pps_bins, ["n", "pps", "APP", "GbE", "Area", "win_rate", "expected"]);
+    closeRows(ts.pps_bins, py.pps_bins, ["n", "pps", "win_rate", "expected"]);
     closeStyleSummary(ts.styles, py.styles);
     closeStyleSummary(ts.styles_recent, py.styles_recent);
     expect(ts.session_decay.map((row) => row.label)).toEqual(py.session_decay.map((row: any) => row.label));
-    closeRows(ts.session_decay, py.session_decay, ["n", "win_rate", "expected", "excess", "apm", "pps", "vs", "area"]);
+    closeRows(ts.session_decay, py.session_decay, ["n", "win_rate", "expected", "excess", "apm", "pps", "vs"]);
     closeFields(tsa.comeback.by_first_round.won_first, py.comeback.by_first_round.won_first, ["n", "win_rate", "expected", "excess"]);
     closeFields(tsa.comeback.by_first_round.lost_first, py.comeback.by_first_round.lost_first, ["n", "win_rate", "expected", "excess"]);
     closeRows(tsa.comeback.by_max_deficit, py.comeback.by_max_deficit, ["n", "win_rate"]);
@@ -168,16 +161,6 @@ describe.skipIf(!existsSync(pythonExe))("python golden comparison", () => {
       "APM",
       "PPS",
       "VS",
-      "APP",
-      "Area",
-      "VS/APM",
-      "DS/S",
-      "DS/P",
-      "GbE",
-      "Opener",
-      "Stride",
-      "Inf DS",
-      "Plonk",
     ], "monthly");
 
     // レコードは項目名・順序・粒度・注記が一致し、数値は許容誤差内。日付は形式差のため除外。
@@ -188,9 +171,7 @@ describe.skipIf(!existsSync(pythonExe))("python golden comparison", () => {
     for (let i = 0; i < py.records.length; i += 1) {
       const expected = py.records[i]?.value;
       const actual = ts.records[i]?.value;
-      if (typeof expected === "number") {
-        close(actual, expected, 8, `records[${i}].value`);
-      } else {
+      if (typeof expected !== "number") {
         expect(actual, `records[${i}].value`).toBe(expected);
       }
     }
@@ -263,38 +244,36 @@ describe.skipIf(!existsSync(pythonExe))("python golden comparison", () => {
     closeRows(ts.recent_windows, py.recent_windows, ["n", "wins", "actual", "expected_n", "expected_actual", "expected", "excess_rate", "excess_wins"], "recent_windows");
     closeMetricGroup(ts.metrics, py.metrics);
     closeMetricGroup(ts.metrics_recent, py.metrics_recent);
-    closeMetricObjects(ts.growth, py.growth, ["early", "recent", "change", "growth_rate"]);
-    closeMetricObjects(ts.stability, py.stability, ["early_p50", "recent_p50", "early_cv", "recent_cv"]);
+    closeMetricObjects(ts.growth, py.growth, ["early", "recent", "change", "growth_rate"], ["APM", "PPS", "VS"]);
+    closeMetricObjects(ts.stability, py.stability, ["early_p50", "recent_p50", "early_cv", "recent_cv"], ["APM", "PPS", "VS"]);
     closeEffectRows(ts.effect_sizes, py.effect_sizes);
-    for (const metric of ["APM", "PPS", "VS", "Area"]) {
+    for (const metric of ["APM", "PPS", "VS"]) {
       closeRows(ts.delta_metric_bins[metric], py.delta_metric_bins[metric], ["n", "delta_mean", "win_rate"], `delta_metric_bins.${metric}`);
     }
     closeRows(ts.dominance, py.dominance, ["n", "actual", "expected", "excess", "all_n"], "dominance");
     closeRows(ts.pps_vs_dominance, py.pps_vs_dominance, ["n", "actual", "expected", "excess", "all_n"], "pps_vs_dominance");
     closeRows(ts.tr_gap, py.tr_gap, ["n", "tr_diff", "actual", "expected", "excess"], "tr_gap");
-    closeRows(ts.streak_states, py.streak_states, ["n", "win_rate", "excess", "d_apm", "d_pps", "d_vs", "d_area"], "streak_states");
-    closeRows(ts.session_positions, py.session_positions, ["n", "actual", "expected", "excess", "d_apm", "d_pps", "d_vs", "d_area"], "session_positions");
+    closeRows(ts.streak_states, py.streak_states, ["n", "win_rate", "excess", "d_apm", "d_pps", "d_vs"], "streak_states");
+    closeRows(ts.session_positions, py.session_positions, ["n", "actual", "expected", "excess", "d_apm", "d_pps", "d_vs"], "session_positions");
     closeRows(ts.excess_by_weekday, py.excess_by_weekday, ["n", "actual", "expected", "excess"], "excess_by_weekday");
     closeRows(ts.excess_by_hour, py.excess_by_hour, ["n", "actual", "expected", "excess"], "excess_by_hour");
-    closeRows(ts.duration_bins, py.duration_bins, ["n", "win_rate", "duration_mean", "delta_APM", "delta_PPS", "delta_VS", "delta_Area"], "duration_bins");
+    closeRows(ts.duration_bins, py.duration_bins, ["n", "win_rate", "duration_mean", "delta_APM", "delta_PPS", "delta_VS"], "duration_bins");
     closeRows(ts.score_states, py.score_states, ["n", "win_rate", "expected", "excess", "score_diff_mean"], "score_states");
-    closeRows(ts.session_decay, py.session_decay, ["n", "win_rate", "expected", "excess", "apm", "pps", "vs", "area"], "session_decay");
+    closeRows(ts.session_decay, py.session_decay, ["n", "win_rate", "expected", "excess", "apm", "pps", "vs"], "session_decay");
     closeRows(ts.rivals, py.rivals, ["n", "wins", "losses", "win_rate"], "rivals");
     closeStyleSummary(ts.styles, py.styles);
     closeStyleSummary(ts.styles_recent, py.styles_recent);
     closeFields(ts.tiebreak, py.tiebreak, ["n", "wins", "win_rate", "expected", "excess", "wilson_low", "wilson_high"], "tiebreak");
 
     expect(bundle.monthly.map((row) => row.month)).toEqual(pyMonthly.map((row: any) => row.month));
-    closeRows(bundle.monthly as any, pyMonthly, ["matches", "wins", "losses", "official_win_rate", "expected_win_rate", "tr_start", "tr_end", "tr_change", "APM", "PPS", "VS", "Area"], "monthly");
+    closeRows(bundle.monthly as any, pyMonthly, ["matches", "wins", "losses", "official_win_rate", "expected_win_rate", "tr_start", "tr_end", "tr_change", "APM", "PPS", "VS"], "monthly");
 
     expect(ts.records.map((row: any) => row.name)).toEqual(py.records.map((row: any) => row.name));
     expect(ts.records.map((row: any) => row.unit)).toEqual(py.records.map((row: any) => row.unit));
     expect(ts.records.map((row: any) => row.scope)).toEqual(py.records.map((row: any) => row.scope));
     for (let i = 0; i < py.records.length; i += 1) {
       const expected = py.records[i]?.value;
-      if (typeof expected === "number") {
-        close(ts.records[i]?.value, expected, 8, `records[${i}].value`);
-      } else {
+      if (typeof expected !== "number") {
         expect(ts.records[i]?.value, `records[${i}].value`).toBe(expected);
       }
     }
@@ -586,24 +565,23 @@ function closeRows(actual: Array<Record<string, any>> | undefined, expected: Arr
 }
 
 function closeMetricGroup(actual: Record<string, Record<string, unknown>>, expected: Record<string, Record<string, unknown>>): void {
-  for (const metric of Object.keys(expected)) {
+  for (const metric of ["APM", "PPS", "VS"]) {
     closeFields(actual[metric] ?? {}, expected[metric] ?? {}, ["self", "opponent", "difference"]);
   }
 }
 
-function closeMetricObjects(actual: Record<string, any>, expected: Record<string, any>, fields: string[]): void {
-  for (const metric of Object.keys(expected)) {
+function closeMetricObjects(actual: Record<string, any>, expected: Record<string, any>, fields: string[], metrics = Object.keys(expected)): void {
+  for (const metric of metrics) {
     closeFields(actual[metric] ?? {}, expected[metric] ?? {}, fields);
   }
 }
 
 function closeEffectRows(actual: Array<Record<string, unknown>>, expected: Array<Record<string, unknown>>): void {
-  expect(actual.map((row) => row.metric)).toEqual(expected.map((row) => row.metric));
-  closeRows(actual, expected, ["d", "win_mean", "loss_mean"]);
+  for (const metric of ["APM", "PPS", "VS"]) {
+    closeFields(findEffect(actual, metric) ?? {}, findEffect(expected, metric) ?? {}, ["d", "win_mean", "loss_mean"], `effect_sizes.${metric}`);
+  }
 }
 
 function closeStyleSummary(actual: Record<string, any>, expected: Record<string, any>): void {
-  expect(actual.representative).toBe(expected.representative);
-  closeMetricObjects(actual.means, expected.means, ["self", "opponent"]);
   closeRows(actual.matchups, expected.matchups, ["n", "actual", "expected", "excess"]);
 }

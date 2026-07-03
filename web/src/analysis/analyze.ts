@@ -1,4 +1,4 @@
-import type { AnalysisBundle, MatchRow, MonthlyRow, RoundRow, Summary, TiebreakRow } from "./types";
+import type { AnalysisBundle, DataRow, MatchRow, MonthlyRow, RoundRow, Summary, TiebreakRow } from "./types";
 import { applyExpectedWins } from "./expected";
 import {
   ABILITY_METRIC_COLUMNS,
@@ -14,6 +14,8 @@ import {
 } from "./enrich";
 import { RECENT_MATCH_WINDOW, SCORE_STATE_ORDER, STYLE_ORDER, TABLE_SCOPE_WINDOWS } from "./model";
 import { cohensD, mean, quantile, quantileBins, runLengths, std, wilsonInterval } from "./stats";
+import { BASE_PARAM_COLUMNS, calculateAverageParams, calculateParams } from "../params";
+import type { LeagueSummaryResult } from "../tetrio-api";
 
 const EMPTY_RESULTS = new Set(["nan", "none", ""]);
 import { toNumber } from "../utils";
@@ -26,6 +28,7 @@ export interface AnalyzeOptions {
   truncated?: boolean;
   cachedUntil?: number | null;
   sessionGapMinutes?: number;
+  leagueSummary?: LeagueSummaryResult | null;
 }
 
 export function analyzeReport(roundRows: RoundRow[], options: AnalyzeOptions): AnalysisBundle {
@@ -157,6 +160,7 @@ export function analyzeReport(roundRows: RoundRow[], options: AnalyzeOptions): A
     recent_windows: windows,
     metrics: metricMeans,
     metrics_recent: recentMetricMeans,
+    current_league: buildCurrentLeague(options.leagueSummary ?? null),
     recent_scope: {
       n_matches: recentMatches.length,
       n_rounds: recentRounds.length,
@@ -218,12 +222,60 @@ export function analyzeReport(roundRows: RoundRow[], options: AnalyzeOptions): A
   };
 }
 
+function buildCurrentLeague(summary: LeagueSummaryResult | null): Summary["current_league"] {
+  const raw = {
+    APM: summary?.raw.apm ?? null,
+    PPS: summary?.raw.pps ?? null,
+    VS: summary?.raw.vs ?? null,
+    TR: summary?.raw.tr ?? null,
+    Glicko: summary?.raw.glicko ?? null,
+    RD: summary?.raw.rd ?? null,
+    gameswon: summary?.raw.gameswon ?? null,
+    gamesplayed: summary?.raw.gamesplayed ?? null,
+    rank: summary?.raw.rank ?? null,
+  };
+  const available = raw.APM !== null && raw.PPS !== null && raw.VS !== null;
+  const emptyDerived = Object.fromEntries(BASE_PARAM_COLUMNS.map((column) => [column, null])) as Record<string, number | null>;
+  if (!available) {
+    return {
+      source: "summaries/league",
+      available: false,
+      raw,
+      derived: emptyDerived,
+    };
+  }
+  try {
+    const derived = calculateParams({
+      apm: raw.APM,
+      pps: raw.PPS,
+      vs: raw.VS,
+      rd_before: raw.RD,
+      games_won_before: raw.gameswon,
+    }) as Record<string, number | null>;
+    return {
+      source: "summaries/league",
+      available: true,
+      raw,
+      derived: Object.fromEntries(BASE_PARAM_COLUMNS.map((column) => [column, derived[column] ?? null])),
+    };
+  } catch {
+    return {
+      source: "summaries/league",
+      available: false,
+      raw,
+      derived: emptyDerived,
+    };
+  }
+}
+
 function metricMeansFor(matches: MatchRow[]): Record<string, Record<string, number | null>> {
   const out: Record<string, Record<string, number | null>> = {};
+  const selfDerived = averageParamsOrNull(matches, "", "");
+  const opponentDerived = averageParamsOrNull(matches, "opponent_", "opponent_");
   for (const [label, col] of Object.entries(BASE_METRICS)) {
     const opponent = opponentColumn(col);
-    const self = mean(matches.map((match) => match[col]));
-    const opp = opponent ? mean(matches.map((match) => match[opponent])) : null;
+    const self = aggregateMetricMean(matches, col, selfDerived);
+    const opp = opponent ? aggregateMetricMean(matches, opponent, opponentDerived) : null;
     out[label] = {
       self,
       opponent: opp,
@@ -263,10 +315,12 @@ function buildGrowth(matches: MatchRow[]): Record<string, unknown> {
   const windowN = Math.min(300, Math.max(Math.floor(matches.length / 3), 1));
   const early = matches.slice(0, windowN);
   const recent = matches.slice(-windowN);
+  const earlyDerived = averageParamsOrNull(early, "", "");
+  const recentDerived = averageParamsOrNull(recent, "", "");
   const out: Record<string, unknown> = {};
   for (const [label, col] of ABILITY_METRIC_COLUMNS) {
-    const earlyMean = mean(early.map((match) => match[col]));
-    const recentMean = mean(recent.map((match) => match[col]));
+    const earlyMean = aggregateMetricMean(early, col, earlyDerived);
+    const recentMean = aggregateMetricMean(recent, col, recentDerived);
     out[label] = {
       early: earlyMean,
       recent: recentMean,
@@ -282,12 +336,13 @@ function buildGrowthWindows(matches: MatchRow[]): Array<Record<string, unknown>>
   sizes.push(matches.length);
   return sizes.filter((n, index, list) => n > 0 && list.indexOf(n) === index).map((n) => {
     const group = matches.slice(-n);
+    const derived = averageParamsOrNull(group, "", "");
     const row: Record<string, unknown> = {
       label: n === matches.length ? "全期間" : `直近${n}マッチ`,
       n,
     };
     for (const [label, col] of ABILITY_METRIC_COLUMNS) {
-      row[label] = mean(group.map((match) => match[col]));
+      row[label] = aggregateMetricMean(group, col, derived);
     }
     return row;
   });
@@ -302,6 +357,7 @@ function buildStability(matches: MatchRow[]): Record<string, unknown> {
   const recent = matches.slice(-windowN);
   const out: Record<string, unknown> = {};
   for (const [label, col] of ABILITY_METRIC_COLUMNS) {
+    // 分布・ばらつきの統計は代表平均ではなく、各マッチ時点の行単位値を対象にする。
     const earlyMean = mean(early.map((match) => match[col]));
     const recentMean = mean(recent.map((match) => match[col]));
     const earlyStd = std(early.map((match) => match[col]));
@@ -415,6 +471,7 @@ function buildMonthly(matches: MatchRow[]): MonthlyRow[] {
     });
     const row = rows[rows.length - 1];
     if (row) {
+      const derived = averageParamsOrNull(group, "", "");
       for (const [label, col] of [
         ["APM", "apm"],
         ["PPS", "pps"],
@@ -426,10 +483,10 @@ function buildMonthly(matches: MatchRow[]): MonthlyRow[] {
         ["DS/P", "DS/Piece"],
         ["GbE", "Garbage Effi."],
       ] as const) {
-        row[label] = mean(group.map((match) => match[col]));
+        row[label] = aggregateMetricMean(group, col, derived);
       }
       for (const style of STYLE_ORDER) {
-        row[style] = mean(group.map((match) => match[style]));
+        row[style] = aggregateMetricMean(group, style, derived);
       }
     }
   }
@@ -512,9 +569,10 @@ function analyzeTiebreaks(rounds: RoundRow[], matches: MatchRow[]): { rows: Tieb
       final_lifetime_s: toNumber(final.lifetime_s),
     };
     const previous = group.slice(0, -1);
+    const priorDerived = averageParamsOrNull(previous, "", "");
     for (const [label, col] of ABILITY_METRIC_COLUMNS) {
       const finalValue = toNumber(final[col]);
-      const priorMean = mean(previous.map((r) => r[col]));
+      const priorMean = aggregateMetricMean(previous, col, priorDerived);
       row[`final_${label}`] = finalValue;
       row[`prior_${label}`] = priorMean;
       row[`change_${label}`] = finalValue !== null && priorMean !== null ? finalValue - priorMean : null;
@@ -1644,11 +1702,13 @@ function buildDominanceTable(matches: MatchRow[], metricLabel: string, deltaCol:
 }
 
 function buildStyleSummary(matches: MatchRow[]): Record<string, unknown> {
+  const selfDerived = averageParamsOrNull(matches, "", "");
+  const opponentDerived = averageParamsOrNull(matches, "opponent_", "opponent_");
   const means = Object.fromEntries(STYLE_ORDER.map((style) => [
     style,
     {
-      self: mean(matches.map((match) => match[style])),
-      opponent: mean(matches.map((match) => match[`opponent_${style}`])),
+      self: aggregateMetricMean(matches, style, selfDerived),
+      opponent: aggregateMetricMean(matches, `opponent_${style}`, opponentDerived),
     },
   ]));
   const representative = STYLE_ORDER.reduce<string>((best, style) => {
@@ -1703,13 +1763,14 @@ function buildExcessBreakdown(
 function buildPpsBins(matches: MatchRow[]): Array<Record<string, unknown>> {
   return quantileBins(matches.map((match) => toNumber(match.pps)), 6).map((bin) => {
     const group = bin.indices.map((index) => matches[index]).filter((match): match is MatchRow => Boolean(match));
+    const derived = averageParamsOrNull(group, "", "");
     return {
       label: `${bin.low.toFixed(2)}..${bin.high.toFixed(2)}`,
       n: group.length,
       pps: mean(group.map((match) => match.pps)),
-      APP: mean(group.map((match) => match.APP)),
-      GbE: mean(group.map((match) => match["Garbage Effi."])),
-      Area: mean(group.map((match) => match.Area)),
+      APP: aggregateMetricMean(group, "APP", derived),
+      GbE: aggregateMetricMean(group, "Garbage Effi.", derived),
+      Area: aggregateMetricMean(group, "Area", derived),
       win_rate: groupWinRate(group),
       expected: mean(group.map((match) => match.expected_win)),
     };
@@ -1758,11 +1819,12 @@ function buildSessionLengthWinrate(matches: MatchRow[]): Array<Record<string, un
 }
 
 function baseMetricMeans(matches: MatchRow[]): Record<string, number | null> {
+  const derived = averageParamsOrNull(matches, "", "");
   return {
     apm: mean(matches.map((match) => match.apm)),
     pps: mean(matches.map((match) => match.pps)),
     vs: mean(matches.map((match) => match.vs)),
-    Area: mean(matches.map((match) => match.Area)),
+    Area: aggregateMetricMean(matches, "Area", derived),
   };
 }
 
@@ -1796,7 +1858,7 @@ function durationStats(rounds: RoundRow[]): Record<string, number | null> {
 }
 
 function diffMean(group: MatchRow[], key: string, base: number | null | undefined): number | null {
-  const value = mean(group.map((match) => match[key]));
+  const value = aggregateMetricMean(group, key, averageParamsOrNull(group, "", ""));
   return value !== null && base != null ? value - base : null;
 }
 
@@ -1825,6 +1887,25 @@ function opponentColumn(col: string): string | null {
   if (["apm", "pps"].includes(col)) return `opponent_${col}`;
   if (col === "Est. TR") return "opponent_Est. TR";
   return `opponent_${col}`;
+}
+
+function averageParamsOrNull(rows: DataRow[], sourcePrefix: string, outputPrefix: string): Record<string, number | null> {
+  try {
+    return calculateAverageParams(rows, undefined, undefined, sourcePrefix, outputPrefix) as Record<string, number | null>;
+  } catch {
+    return Object.fromEntries(BASE_PARAM_COLUMNS.map((column) => [`${outputPrefix}${column}`, null]));
+  }
+}
+
+function aggregateMetricMean(
+  rows: DataRow[],
+  column: string,
+  derived: Record<string, number | null>,
+): number | null {
+  if (column in derived) {
+    return derived[column] ?? null;
+  }
+  return mean(rows.map((row) => row[column]));
 }
 
 function groupWinRate(group: Array<Pick<MatchRow, "won">>): number | null {

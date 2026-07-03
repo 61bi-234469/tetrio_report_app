@@ -1,8 +1,9 @@
 import type { DataRow } from "./analysis/types";
-import { requireNumber, safeDiv } from "./utils";
+import { requireNumber, safeDiv, toNumber } from "./utils";
+import { mean } from "./analysis/stats";
 
 export const DEFAULT_GLICKO_SIGMA = 60.9;
-export const DEFAULT_EST_TR_GAMES_WON = 16;
+export const DEFAULT_EST_TR_GAMES_WON = 18;
 
 export const BASE_PARAM_COLUMNS = [
   "APP",
@@ -74,14 +75,22 @@ export function estimateTrTetrastats(
 
 export function calculateParams(
   row: DataRow,
-  glickoSigma = DEFAULT_GLICKO_SIGMA,
-  gamesWon = DEFAULT_EST_TR_GAMES_WON,
+  glickoSigma?: number | null,
+  gamesWon?: number | null,
   sourcePrefix = "",
   outputPrefix = "",
 ): DataRow {
   const apm = requireNumber(`${sourcePrefix}apm`, row[`${sourcePrefix}apm`]);
   const pps = requireNumber(`${sourcePrefix}pps`, row[`${sourcePrefix}pps`]);
   const vs = requireNumber(`${sourcePrefix}vs`, row[`${sourcePrefix}vs`]);
+  const effectiveGlickoSigma = glickoSigma ??
+    toNumber(row[`${sourcePrefix}rd_before`]) ??
+    toNumber(row[`${sourcePrefix}rd_after`]) ??
+    DEFAULT_GLICKO_SIGMA;
+  const effectiveGamesWon = gamesWon ??
+    toNumber(row[`${sourcePrefix}games_won_before`]) ??
+    toNumber(row[`${sourcePrefix}games_won_after`]) ??
+    DEFAULT_EST_TR_GAMES_WON;
 
   const eff = safeDiv(apm, pps);
   const vsApm = safeDiv(vs, apm);
@@ -130,7 +139,7 @@ export function calculateParams(
   const stride = ((nApm - 1) * -0.25 + (nPps - 1) + (nApp - 1) * -2 + (nDsPiece - 1) * -0.5) * 0.79 + 0.5;
   const plonk = ((nGarbageEff - 1) + (nApp - 1) + (nDsPiece - 1) * 0.75 + (nPps - 1) * -1) / 2.73 + 0.5;
   const infDs = ((nDsPiece - 1) + (nApp - 1) * -0.75 + (nApm - 1) * 0.5 + (nDs - 1) * 1.5 + (nPps - 1) * 0.5) * 0.9 + 0.5;
-  const estTr = estimateTrTetrastats(pps, app, dsPiece, vsApm, glickoSigma, gamesWon);
+  const estTr = estimateTrTetrastats(pps, app, dsPiece, vsApm, effectiveGlickoSigma, effectiveGamesWon);
 
   const raw: Record<BaseParamColumn, number> = {
     "APP": app,
@@ -158,6 +167,29 @@ export function calculateParams(
   return out;
 }
 
+export function calculateAverageParams(
+  rows: DataRow[],
+  glickoSigma?: number | null,
+  gamesWon?: number | null,
+  sourcePrefix = "",
+  outputPrefix = "",
+): DataRow {
+  const completeRows = rows.filter((row) =>
+    toNumber(row[`${sourcePrefix}apm`]) !== null &&
+    toNumber(row[`${sourcePrefix}pps`]) !== null &&
+    toNumber(row[`${sourcePrefix}vs`]) !== null);
+  const averaged: DataRow = {
+    [`${sourcePrefix}apm`]: mean(completeRows.map((row) => row[`${sourcePrefix}apm`])),
+    [`${sourcePrefix}pps`]: mean(completeRows.map((row) => row[`${sourcePrefix}pps`])),
+    [`${sourcePrefix}vs`]: mean(completeRows.map((row) => row[`${sourcePrefix}vs`])),
+  };
+  const context = latestMetricContext(completeRows, sourcePrefix);
+  return calculateParams({
+    ...averaged,
+    ...context,
+  }, glickoSigma, gamesWon, sourcePrefix, outputPrefix);
+}
+
 export function enrichRowsWithParams(
   rows: DataRow[],
   options: {
@@ -174,8 +206,8 @@ export function enrichRowsWithParams(
     targetOutputPrefix = "",
     opponentSourcePrefix = "opponent_",
     opponentOutputPrefix = "opponent_",
-    glickoSigma = DEFAULT_GLICKO_SIGMA,
-    gamesWon = DEFAULT_EST_TR_GAMES_WON,
+    glickoSigma,
+    gamesWon,
   } = options;
 
   return rows.map((row) => {
@@ -190,8 +222,8 @@ function applyParams(
   row: DataRow,
   sourcePrefix: string,
   outputPrefix: string,
-  glickoSigma: number,
-  gamesWon: number,
+  glickoSigma: number | null | undefined,
+  gamesWon: number | null | undefined,
 ): void {
   try {
     Object.assign(row, calculateParams(row, glickoSigma, gamesWon, sourcePrefix, outputPrefix));
@@ -200,4 +232,26 @@ function applyParams(
       row[`${outputPrefix}${column}`] = null;
     }
   }
+}
+
+function latestMetricContext(rows: DataRow[], sourcePrefix: string): DataRow {
+  for (let i = rows.length - 1; i >= 0; i -= 1) {
+    const row = rows[i];
+    if (!row) {
+      continue;
+    }
+    const rdBefore = toNumber(row[`${sourcePrefix}rd_before`]);
+    const rdAfter = toNumber(row[`${sourcePrefix}rd_after`]);
+    const gamesWonBefore = toNumber(row[`${sourcePrefix}games_won_before`]);
+    const gamesWonAfter = toNumber(row[`${sourcePrefix}games_won_after`]);
+    if (rdBefore !== null || rdAfter !== null || gamesWonBefore !== null || gamesWonAfter !== null) {
+      return {
+        [`${sourcePrefix}rd_before`]: rdBefore,
+        [`${sourcePrefix}rd_after`]: rdAfter,
+        [`${sourcePrefix}games_won_before`]: gamesWonBefore,
+        [`${sourcePrefix}games_won_after`]: gamesWonAfter,
+      };
+    }
+  }
+  return {};
 }

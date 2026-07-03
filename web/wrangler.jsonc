@@ -15,5 +15,10 @@
   ],
   "observability": {
     "enabled": true
+  },
+  "env": {
+    "develop": {
+      "name": "league-report-develop"
+    }
   }
 }

@@ -1,0 +1,2 @@
+rounds_with_params.parquet をこのフォルダーへ置き、プロジェクト直下で .\make_report.ps1 を実行してください。
+同名規則で matches_with_params.parquet が見つかる場合は、Glicko/RD・DQ勝・無効区分などの試合メタデータも利用します。

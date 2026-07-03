@@ -1,0 +1,19 @@
+{
+  "name": "league-report",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-01",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS"
+  },
+  "rules": [
+    {
+      "type": "Text",
+      "globs": ["**/node_modules/chart.js/dist/chart.umd.min.js"],
+      "fallthrough": true
+    }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}

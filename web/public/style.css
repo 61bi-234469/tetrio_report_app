@@ -1,0 +1,228 @@
+:root {
+  color-scheme: light;
+  --ink: #15161e;
+  --muted: #6b7280;
+  --line: #dfe2ec;
+  --accent: #6366f1;
+  --accent-strong: #4f46e5;
+  --panel: #ffffff;
+  --page: #f4f5fb;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--ink);
+  background:
+    radial-gradient(900px 420px at 85% -10%, rgba(99, 102, 241, 0.14), transparent 60%),
+    radial-gradient(700px 380px at -10% 110%, rgba(8, 145, 178, 0.10), transparent 60%),
+    var(--page);
+  font-family: "Noto Sans CJK JP", "Hiragino Kaku Gothic ProN", system-ui, -apple-system, "Segoe UI", sans-serif;
+  line-height: 1.75;
+}
+
+.shell {
+  width: min(720px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 64px 0 48px;
+}
+
+.form-panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 36px;
+  box-shadow: 0 18px 40px rgba(21, 22, 30, 0.08);
+}
+
+.eyebrow {
+  margin: 0 0 10px;
+  color: var(--accent-strong);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 0 0 10px;
+  font-size: clamp(1.7rem, 4vw, 2.4rem);
+  letter-spacing: 0.01em;
+  line-height: 1.3;
+}
+
+.tagline {
+  margin: 0 0 26px;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.report-form {
+  display: grid;
+  gap: 18px;
+}
+
+label {
+  display: grid;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 0.92rem;
+}
+
+input,
+select,
+button {
+  width: 100%;
+  min-height: 46px;
+  border-radius: 10px;
+  font: inherit;
+}
+
+input,
+select {
+  border: 1px solid var(--line);
+  padding: 0 14px;
+  background: #fff;
+  color: var(--ink);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+input:focus,
+select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.16);
+}
+
+.note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.7;
+}
+
+.check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-weight: 700;
+}
+
+.check input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  margin-top: 3px;
+  padding: 0;
+  flex: 0 0 auto;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.check-text {
+  display: grid;
+  gap: 3px;
+}
+
+.check-note {
+  font-weight: 400;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+
+.report-form .error {
+  color: #c2410c;
+}
+
+button {
+  border: 0;
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  color: #fff;
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: filter 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 8px 20px rgba(79, 70, 229, 0.28);
+}
+
+button:hover {
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(79, 70, 229, 0.32);
+}
+
+button:disabled {
+  background: #93a1b3;
+  cursor: wait;
+  transform: none;
+  box-shadow: none;
+}
+
+.spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-right: 8px;
+  vertical-align: -2px;
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.features {
+  margin: 0 0 26px;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+.features li {
+  background: #f7f8fd;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 0.85rem;
+  color: #374151;
+}
+
+.features li b {
+  display: block;
+  color: var(--ink);
+  font-size: 0.9rem;
+}
+
+.page-footer {
+  margin: 22px 4px 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.8;
+  text-align: center;
+}
+
+.page-footer a {
+  color: var(--accent-strong);
+}
+
+@media (max-width: 560px) {
+  .shell {
+    width: min(100% - 20px, 720px);
+    padding: 24px 0 32px;
+  }
+
+  .form-panel {
+    padding: 24px 20px;
+  }
+}

@@ -6,6 +6,24 @@ describe("worker endpoint", () => {
     vi.unstubAllGlobals();
   });
 
+  it("serves the landing page asset at the root path", async () => {
+    const assetFetch = vi.fn(async (request: Request) => {
+      expect(new URL(request.url).pathname).toBe("/index.html");
+      return new Response("<!doctype html><title>ok</title>", {
+        headers: { "content-type": "text/html; charset=utf-8" },
+      });
+    });
+
+    const response = await handleRequest(new Request("http://worker.test/"), {
+      ASSETS: { fetch: assetFetch } as unknown as Fetcher,
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("text/html");
+    expect(response.headers.get("X-Content-Type-Options")).toBe("nosniff");
+    expect(await response.text()).toContain("<title>ok</title>");
+  });
+
   it("builds a self-contained report from mocked TETR.IO records", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
       success: true,

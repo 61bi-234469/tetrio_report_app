@@ -61,7 +61,7 @@ async function routeRequest(request: Request, env?: Env): Promise<Response> {
     return handleLeaguePage(url, request);
   }
   if (env?.ASSETS) {
-    return env.ASSETS.fetch(request);
+    return env.ASSETS.fetch(assetRequest(request, url));
   }
   if (url.pathname === "/") {
     return renderMessagePage(200, "戦績レポート for TETR.IO", "静的フォームはwrangler devで配信されます。");
@@ -145,6 +145,15 @@ async function handleLeaguePage(url: URL, request: Request): Promise<Response> {
     status: response.status,
     headers: jsonHeaders(),
   });
+}
+
+function assetRequest(request: Request, url: URL): Request {
+  if (url.pathname !== "/") {
+    return request;
+  }
+  const indexUrl = new URL(request.url);
+  indexUrl.pathname = "/index.html";
+  return new Request(indexUrl, request);
 }
 
 export function __resetProxyRateLimitForTests(): void {

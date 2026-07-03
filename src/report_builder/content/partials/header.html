@@ -1,0 +1,17 @@
+<header class="top">
+  <h1>{{ report.heading }}</h1>
+  <div class="sub">{{ report.subtitle_html | safe }}</div>
+</header>
+<div class="kpis">
+{% for kpi in report.kpis %}
+  <div class="kpi">
+    <div class="lab">{{ kpi.label }}</div>
+    <div class="val">{{ kpi.value }}</div>
+    <div class="note">{{ kpi.note }}</div>
+  </div>
+{% endfor %}
+</div>
+{{ report.executive_summary_html | safe }}
+{{ report.glossary_html | safe }}
+<div class="note-box">{{ report.note_box_html | safe }}</div>
+<div class="toc">{{ report.toc_html | safe }}</div>

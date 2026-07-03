@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>戦績レポート for TETR.IO</title>
+    <link rel="stylesheet" href="/style.css">
+  </head>
+  <body>
+    <main class="shell">
+      <section class="form-panel" aria-labelledby="page-title">
+        <p class="eyebrow">League Report for TETR.IO</p>
+        <h1 id="page-title">戦績レポート for TETR.IO</h1>
+        <p class="tagline">Tetra Leagueの公開データから、12章構成の戦績分析レポートを1ページのHTMLで生成します。</p>
+        <ul class="features">
+          <li><b>TR・能力推移</b>成長とドローダウンを時系列で確認</li>
+          <li><b>期待値との比較</b>Glicko期待勝率に対する超過を集計</li>
+          <li><b>局面・連戦分析</b>タイブレークやセッション内の傾向</li>
+        </ul>
+        <form action="/api/report" method="get" class="report-form">
+          <label>
+            <span>ユーザー名</span>
+            <input name="username" autocomplete="username" placeholder="your_username" required>
+          </label>
+          <label>
+            <span>取得マッチ数</span>
+            <select name="max_matches">
+              <option value="100" selected>100</option>
+              <option value="200">200</option>
+              <option value="300">300</option>
+              <option value="500">500</option>
+              <option value="1000">1000</option>
+              <option value="all">全試合</option>
+            </select>
+          </label>
+          <label class="check">
+            <input type="checkbox" name="anonymize" value="on">
+            <span class="check-text"><b>レポートを匿名化する</b><span class="check-note">自分以外のプレイヤー名を「プレイヤーA」に置き換え、リプレイリンクを無効化します。</span></span>
+          </label>
+          <p class="note">全試合は数分かかる場合があります。生成中は取得状況を下に表示します。</p>
+          <p id="progress" class="note" aria-live="polite" hidden></p>
+          <button type="submit">レポートを生成</button>
+        </form>
+      </section>
+      <p class="page-footer">非公式ツールです。TETR.IO / osk とは関係ありません。"TETR.IO" は権利者の商標です。入力したユーザー名の公開Tetra Leagueデータのみを使用します。<br>生成ツールは<a href="https://github.com/61bi-234469/tetrio_report_app">MITライセンスで公開</a>しています。</p>
+    </main>
+    <script src="/report.js" defer></script>
+  </body>
+</html>

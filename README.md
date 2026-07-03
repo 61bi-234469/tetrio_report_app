@@ -20,11 +20,7 @@ tetr.io の Tetra League 戦績を TETRA CHANNEL API から取得し、12章構�
 
 | レポート種別 | リンク |
 |---|---|
-| Web版 戦績分析レポート（300試合・匿名化版） | [サンプルを見る](https://htmlpreview.github.io/?https://github.com/61bi-234469/tetrio_report_app/blob/main/samples/sample_web_report.html) |
-| 旧Python版 ① 戦績分析レポート（本体） | [サンプルを見る](https://htmlpreview.github.io/?https://github.com/61bi-234469/tetrio_report_app/blob/main/samples/sample_report.html) |
-| 旧Python版 ② AI考察レポート（別紙・Python版のみ） | [サンプルを見る](https://htmlpreview.github.io/?https://github.com/61bi-234469/tetrio_report_app/blob/main/samples/sample_ai_report.html) |
-
-旧Python版のサンプルは参考用です。新規利用はWeb版を推奨します。
+| Web版 戦績レポート（300試合・匿名化版） | [サンプルを見る](https://raw.githack.com/61bi-234469/tetrio_report_app/develop/samples/sample_web_report.html) |
 
 ---
 
@@ -73,6 +69,15 @@ npx wrangler deploy
 Windows向けのGUI/コマンドライン版です。**旧版として今後の機能追加は行わず、更新停止予定です。** 新規に使う場合はWeb版を推奨します。
 
 Python版では、ツールが作る**①戦績レポート（本体）**に加えて、外部AIに素材を渡して作る**②AI考察レポート（別紙）**を作成できます（②はPython版のみの機能です）。
+
+### 旧版サンプルレポート
+
+旧Python版のサンプルは参考用です。新規利用はWeb版を推奨します。
+
+| レポート種別 | リンク |
+|---|---|
+| 旧Python版 ① 戦績レポート（本体） | [サンプルを見る](https://raw.githack.com/61bi-234469/tetrio_report_app/develop/samples/sample_report.html) |
+| 旧Python版 ② AI考察レポート（別紙・Python版のみ） | [サンプルを見る](https://raw.githack.com/61bi-234469/tetrio_report_app/develop/samples/sample_ai_report.html) |
 
 | | ① 戦績レポート（本体） | ② AI考察レポート（別紙） |
 |---|---|---|

@@ -18,6 +18,8 @@ describe("worker endpoint", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toContain("text/html");
+    expect(response.headers.get("Content-Security-Policy")).toContain("frame-ancestors 'none'");
+    expect(response.headers.get("X-Content-Type-Options")).toBe("nosniff");
     expect(html).toContain("const CHART_CONFIGS=");
     expect(html).toContain("01_tr_history");
     expect(html).toContain("29_session_decay");

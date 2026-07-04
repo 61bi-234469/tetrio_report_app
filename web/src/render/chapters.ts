@@ -287,7 +287,7 @@ export function renderChapters(bundle: AnalysisBundle, anon: Anonymizer): string
   c4 += block(
     "履歴分析の直近窓は保存済みrecent recordsから集計。",
     ["summaryRecentSplit"],
-    "summary API 由来の現在値とは対象粒度・除外条件・キャッシュ時点が異なる。",
+    "summary API 由来の現在値とは対象範囲・取得タイミングが異なる。",
   );
   parts.push(chapterSection(4, c4));
 

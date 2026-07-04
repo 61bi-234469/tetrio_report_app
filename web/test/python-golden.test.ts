@@ -195,14 +195,11 @@ describe.skipIf(!existsSync(pythonExe))("python golden comparison", () => {
     expect(ts.meta.unknown_result_counts).toEqual(py.meta.unknown_result_counts);
     closeFields(ts.meta, py.meta, [
       "matches",
-      "analysis_matches",
-      "rounds",
       "nullified_matches",
       "no_contest_matches",
       "tie_matches",
       "dq_wins",
       "dq_losses",
-      "opponents",
     ], "meta");
     closeFields(ts.kpis, py.kpis, [
       "wins",
@@ -212,14 +209,11 @@ describe.skipIf(!existsSync(pythonExe))("python golden comparison", () => {
       "nullified",
       "no_contest",
       "ties",
-      "analysis_matches",
       "official_win_rate",
-      "normal_win_rate",
     ], "kpis");
-    close(ts.model.valid_n, py.model.valid_n, 8, "model.valid_n");
-    // 期待対象マッチ（Glicko/RD欠損は分母から除外）が全期間窓で一致する。
-    close(ts.recent_windows.at(-1)?.n, py.recent_windows.at(-1)?.n, 8, "recent_windows.last.n");
-    close(ts.recent_windows.at(-1)?.expected_n, py.recent_windows.at(-1)?.expected_n, 8, "recent_windows.last.expected_n");
+    // TS版はDQ込み一本化(analysis_eligible→completed)・leaderboard.stats採用を実装済みで、
+    // Python版(report_builder)は旧来のDQ除外・ラウンド平均のまま。母集団が変わるため
+    // analysis_matches・rounds・opponents・model.valid_n・recent_windowsの分母以降は意図的にPython版と一致しない。
   }, 60_000);
 
   // 実データ由来fixture（匿名化済CSV）が存在すれば、合成データと同じ比較セットで突合する。

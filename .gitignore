@@ -45,10 +45,12 @@ web/.dev.vars.*
 
 # Local Claude/Codex preview settings
 .claude/
+.codex/*.png
 
 # Web build/runtime artifacts
 web/node_modules/
 web/.wrangler/
+web/.wrangler-config/
 web/dist/
 web/coverage/
 web/public/report.js

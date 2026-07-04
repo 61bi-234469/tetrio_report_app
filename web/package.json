@@ -6,6 +6,7 @@
   "scripts": {
     "build:client": "node build-client.mjs",
     "dev": "npm run build:client && wrangler dev",
+    "dev:8788": "npm run build:client && wrangler dev --port 8788",
     "typecheck": "tsc --noEmit && tsc -p src/client --noEmit",
     "test": "vitest run",
     "check": "npm run typecheck && npm run build:client && npm run test"

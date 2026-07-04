@@ -24,7 +24,7 @@ export function applyExpectedWins(matches: MatchRow[]): {
     const own = toNumber(match.glicko_before);
     const opponent = toNumber(match.opponent_glicko_before);
     const rd = toNumber(match.opponent_rd_before);
-    if (match.analysis_eligible && own !== null && opponent !== null && rd !== null) {
+    if (match.completed && own !== null && opponent !== null && rd !== null) {
       const expected = glickoExpectedScore(own, opponent, rd);
       match.expected_win = expected;
       valid.push(match);

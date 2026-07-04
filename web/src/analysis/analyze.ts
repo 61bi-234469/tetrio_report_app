@@ -36,8 +36,8 @@ export function analyzeReport(roundRows: RoundRow[], options: AnalyzeOptions): A
   const rounds = enrichRounds(roundRows);
   const matches = buildMatchRows(rounds, sessionGapMinutes);
   const model = applyExpectedWins(matches);
-  const official = matches.filter((match) => Boolean(match.completed));
-  const completed = matches.filter((match) => Boolean(match.analysis_eligible));
+  const completed = matches.filter((match) => Boolean(match.completed));
+  const regularOnly = matches.filter((match) => Boolean(match.analysis_eligible));
   const completedIds = new Set(completed.map((match) => Number(match.match_number)));
   const eligibleRounds = rounds.filter((round) => completedIds.has(Number(round.match_number)));
   const monthly = buildMonthly(completed);
@@ -119,7 +119,7 @@ export function analyzeReport(roundRows: RoundRow[], options: AnalyzeOptions): A
       player: options.username,
       start: completed.map((match) => String(match.played_at_jst ?? "")).filter(Boolean).sort()[0] ?? null,
       end: completed.map((match) => String(match.played_at_jst ?? "")).filter(Boolean).sort().at(-1) ?? null,
-      matches: official.length,
+      matches: completed.length,
       analysis_matches: completed.length,
       rounds: eligibleRounds.length,
       source_rounds: rounds.length,
@@ -139,12 +139,12 @@ export function analyzeReport(roundRows: RoundRow[], options: AnalyzeOptions): A
       dq_losses: matches.filter((match) => match.dq_loss).length,
     },
     kpis: {
-      wins: official.filter((match) => match.won).length,
-      losses: official.filter((match) => !match.won).length,
-      official_win_rate: groupWinRate(official),
-      normal_win_rate: groupWinRate(completed),
-      dq_wins: official.filter((match) => match.dq_win).length,
-      dq_losses: official.filter((match) => match.dq_loss).length,
+      wins: completed.filter((match) => match.won).length,
+      losses: completed.filter((match) => !match.won).length,
+      official_win_rate: groupWinRate(completed),
+      normal_win_rate: groupWinRate(regularOnly),
+      dq_wins: completed.filter((match) => match.dq_win).length,
+      dq_losses: completed.filter((match) => match.dq_loss).length,
       nullified: matches.filter((match) => match.nullified).length,
       no_contest: matches.filter((match) => match.no_contest).length,
       ties: matches.filter((match) => match.tie).length,
@@ -212,7 +212,7 @@ export function analyzeReport(roundRows: RoundRow[], options: AnalyzeOptions): A
     replay_candidates: buildReplayCandidates(completed, eligibleRounds),
   };
 
-  // Python版 AnalysisBundle と同じく、チャート・表示は通常勝敗マッチのみを対象にする。
+  // チャート・表示はDQ(不戦勝・不戦敗)を含む公式勝敗マッチ全体を対象にする。
   return {
     rounds: eligibleRounds,
     matches: completed,

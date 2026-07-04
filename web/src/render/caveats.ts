@@ -17,7 +17,10 @@ export type CaveatId =
   | "summaryRecentSplit"
   | "binBoundary"
   | "privacy"
-  | "replayExpiry";
+  | "replayExpiry"
+  | "dqIncluded"
+  | "matchLevelSource"
+  | "roundDqMixed";
 
 interface Caveat {
   short: string;
@@ -63,7 +66,7 @@ export const CAVEATS: Record<CaveatId, Caveat> = {
   },
   summaryRecentSplit: {
     short: "現在値と履歴値",
-    full: "現在TL値はsummary API由来。直近窓は保存済みrecent records由来で、対象粒度・除外条件・キャッシュ時点が異なるため一致しない場合がある。",
+    full: "現在TL値はsummary API由来。直近窓は保存済みrecent records由来で、対象範囲・取得タイミングが異なるため一致しない場合がある。",
   },
   binBoundary: {
     short: "ビン境界",
@@ -76,6 +79,18 @@ export const CAVEATS: Record<CaveatId, Caveat> = {
   replayExpiry: {
     short: "リプレイ期限",
     full: "リプレイは一定期間でサーバーから削除され、古いマッチは視聴できない。APIデータは盤面や入力を含まない。",
+  },
+  dqIncluded: {
+    short: "DQ込み",
+    full: "本レポートの戦績・能力値集計はDQ(不戦勝・不戦敗)を含む公式勝敗マッチ全体を対象にする。TETR.IO/Tetra Statsの表示と揃えるための意図的な選択。",
+  },
+  matchLevelSource: {
+    short: "マッチ能力値の出典",
+    full: "マッチ単位のAPM/PPS/VS(および派生指標)はAPIの試合集計値(leaderboard.stats)を使う。欠損時のみラウンド単純平均で補う。",
+  },
+  roundDqMixed: {
+    short: "DQ試合のラウンド",
+    full: "タイブレーク・逆転・決着時間などラウンド単位の項目もDQ試合のラウンドを含む。相手の途中切断などで通常と異なるラウンドが混じる場合がある。",
   },
 };
 

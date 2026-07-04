@@ -89,7 +89,9 @@ describe.skipIf(!existsSync(pythonExe))("python golden comparison", () => {
     closeRows(ts.pps_vs_dominance, py.pps_vs_dominance, ["n", "actual", "expected", "excess", "all_n"]);
     expect(ts.tr_gap.map((row) => row.label)).toEqual(py.tr_gap.map((row: any) => row.label));
     closeRows(ts.tr_gap, py.tr_gap, ["n", "tr_diff", "actual", "expected", "excess"]);
-    closeFields(ts.streaks, py.streaks, ["max_win", "max_loss", "after_win_rate", "after_win_n", "after_loss_rate", "after_loss_n", "after_3_losses_rate", "after_3_losses_n"]);
+    close(ts.streaks.session_max_win, py.streaks.max_win, 8, "streaks.session_max_win");
+    close(ts.streaks.session_max_loss, py.streaks.max_loss, 8, "streaks.session_max_loss");
+    closeFields(ts.streaks, py.streaks, ["after_win_rate", "after_win_n", "after_loss_rate", "after_loss_n", "after_3_losses_rate", "after_3_losses_n"]);
     expect(ts.streaks.win_runs).toEqual(py.streaks.win_runs);
     expect(ts.streaks.loss_runs).toEqual(py.streaks.loss_runs);
     closeRows(ts.streak_states, py.streak_states, ["n", "win_rate", "excess", "d_apm", "d_pps", "d_vs"]);
@@ -164,17 +166,8 @@ describe.skipIf(!existsSync(pythonExe))("python golden comparison", () => {
     ], "monthly");
 
     // レコードは項目名・順序・粒度・注記が一致し、数値は許容誤差内。日付は形式差のため除外。
-    expect(ts.records.map((row) => row.name)).toEqual(py.records.map((row: any) => row.name));
-    expect(ts.records.map((row) => row.scope)).toEqual(py.records.map((row: any) => row.scope));
-    expect(ts.records.map((row) => row.unit)).toEqual(py.records.map((row: any) => row.unit));
-    expect(ts.records.map((row) => row.note)).toEqual(py.records.map((row: any) => row.note));
-    for (let i = 0; i < py.records.length; i += 1) {
-      const expected = py.records[i]?.value;
-      const actual = ts.records[i]?.value;
-      if (typeof expected !== "number") {
-        expect(actual, `records[${i}].value`).toBe(expected);
-      }
-    }
+    // Web版の最長連勝/連敗は全期間記録へ変更したため、旧Python版のセッション内記録とは別枠で扱う。
+    expectRecordParity(ts.records, py.records, true);
   }, 60_000);
 
   // 実データ由来fixtureが来る前のエッジ下限（設計§11.1 / 計画3.2-3）。
@@ -262,15 +255,7 @@ describe.skipIf(!existsSync(pythonExe))("python golden comparison", () => {
     expect(bundle.monthly.map((row) => row.month)).toEqual(pyMonthly.map((row: any) => row.month));
     closeRows(bundle.monthly as any, pyMonthly, ["matches", "wins", "losses", "official_win_rate", "expected_win_rate", "tr_start", "tr_end", "tr_change", "APM", "PPS", "VS"], "monthly");
 
-    expect(ts.records.map((row: any) => row.name)).toEqual(py.records.map((row: any) => row.name));
-    expect(ts.records.map((row: any) => row.unit)).toEqual(py.records.map((row: any) => row.unit));
-    expect(ts.records.map((row: any) => row.scope)).toEqual(py.records.map((row: any) => row.scope));
-    for (let i = 0; i < py.records.length; i += 1) {
-      const expected = py.records[i]?.value;
-      if (typeof expected !== "number") {
-        expect(ts.records[i]?.value, `records[${i}].value`).toBe(expected);
-      }
-    }
+    expectRecordParity(ts.records, py.records, false);
   }, 120_000);
 });
 
@@ -578,4 +563,28 @@ function closeEffectRows(actual: Array<Record<string, unknown>>, expected: Array
 
 function closeStyleSummary(actual: Record<string, any>, expected: Record<string, any>): void {
   closeRows(actual.matchups, expected.matchups, ["n", "actual", "expected", "excess"]);
+}
+
+const WEB_STREAK_RECORD_NAMES = new Set(["最長連勝", "最長連敗", "セッション内最長連勝", "セッション内最長連敗"]);
+
+function parityRecords(records: Array<Record<string, any>>): Array<Record<string, any>> {
+  return records.filter((record) => !WEB_STREAK_RECORD_NAMES.has(String(record.name)));
+}
+
+function expectRecordParity(tsRecordsRaw: Array<Record<string, any>>, pyRecordsRaw: Array<Record<string, any>>, compareNote: boolean): void {
+  const tsRecords = parityRecords(tsRecordsRaw);
+  const pyRecords = parityRecords(pyRecordsRaw);
+  expect(tsRecords.map((row) => row.name)).toEqual(pyRecords.map((row) => row.name));
+  expect(tsRecords.map((row) => row.scope)).toEqual(pyRecords.map((row) => row.scope));
+  expect(tsRecords.map((row) => row.unit)).toEqual(pyRecords.map((row) => row.unit));
+  if (compareNote) {
+    expect(tsRecords.map((row) => row.note)).toEqual(pyRecords.map((row) => row.note));
+  }
+  for (let i = 0; i < pyRecords.length; i += 1) {
+    const expected = pyRecords[i]?.value;
+    const actual = tsRecords[i]?.value;
+    if (typeof expected !== "number") {
+      expect(actual, `records[${i}].value`).toBe(expected);
+    }
+  }
 }

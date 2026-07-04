@@ -576,8 +576,8 @@ function deltaMetricChart(deltaBins: Record<string, Array<Record<string, unknown
 }
 
 function buildStreakDistribution(streaks: Record<string, unknown>): ChartConfig {
-  const winRuns = (Array.isArray(streaks.win_runs) ? streaks.win_runs : []) as number[];
-  const lossRuns = (Array.isArray(streaks.loss_runs) ? streaks.loss_runs : []) as number[];
+  const winRuns = (Array.isArray(streaks.session_win_runs) ? streaks.session_win_runs : Array.isArray(streaks.win_runs) ? streaks.win_runs : []) as number[];
+  const lossRuns = (Array.isArray(streaks.session_loss_runs) ? streaks.session_loss_runs : Array.isArray(streaks.loss_runs) ? streaks.loss_runs : []) as number[];
   const lengths = Array.from({ length: 10 }, (_, index) => index + 1);
   const labels = [...lengths.slice(0, 9).map(String), "10以上"];
   const countRuns = (runs: number[], len: number): number =>

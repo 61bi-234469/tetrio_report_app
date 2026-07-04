@@ -1,0 +1,4 @@
+interface:
+  display_name: "Update Web Sample Report"
+  short_description: "Regenerate and replace the anonymized web sample"
+  default_prompt: "Use $update-web-sample-report to regenerate the 61bi_234469 300-match anonymized web sample."

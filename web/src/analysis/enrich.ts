@@ -151,21 +151,16 @@ export function buildMatchRows(rounds: RoundRow[], sessionGapMinutes = DEFAULT_S
         match[key] = first[key];
       }
     }
-    const metricColumns = [
-      "apm",
-      "pps",
-      "vs",
-      "btb",
-      "opponent_apm",
-      "opponent_pps",
-      "opponent_vs",
-      "opponent_btb",
-    ];
-    for (const key of metricColumns) {
-      const value = mean(group.map((row) => row[key]));
-      if (value !== null) {
-        match[key] = value;
-      }
+    // TETR.IO/Tetra Stats同様、マッチ単位の能力値はAPIの試合集計値(leaderboard.stats)を優先する。
+    // 欠損時のみラウンド単純平均にフォールバックする。
+    const leaderboardEntries = parseLeaderboardEntries(match);
+    for (const [statField, matchKey] of LEADERBOARD_METRIC_FIELDS) {
+      const targetValue = leaderboardStat(leaderboardEntries.target, statField);
+      match[matchKey] = targetValue !== null ? targetValue : mean(group.map((row) => row[matchKey]));
+      const opponentValue = leaderboardStat(leaderboardEntries.opponent, statField);
+      match[`opponent_${matchKey}`] = opponentValue !== null
+        ? opponentValue
+        : mean(group.map((row) => row[`opponent_${matchKey}`]));
     }
     assignCalculatedParams(match, "", "");
     assignCalculatedParams(match, "opponent_", "opponent_");
@@ -183,7 +178,7 @@ export function buildMatchRows(rounds: RoundRow[], sessionGapMinutes = DEFAULT_S
     match.nullified = NULLIFIED_RESULTS.has(norm);
     match.no_contest = NO_CONTEST_RESULTS.has(norm);
     match.tie = TIE_RESULTS.has(norm);
-    const activity = leaderboardActivity(match);
+    const activity = activityFromEntries(leaderboardEntries);
     const inferredDqWin = (inactiveValue(match.opponent_leaderboard_active) || activity.opponentInactive) &&
       (WIN_RESULTS.has(norm) || DQ_WIN_RESULTS.has(norm));
     const inferredDqLoss = (inactiveValue(match.target_leaderboard_active) || activity.targetInactive) &&
@@ -321,19 +316,26 @@ function inactiveValue(value: unknown): boolean {
   return false;
 }
 
-function leaderboardActivity(row: DataRow): { targetInactive: boolean; opponentInactive: boolean } {
+interface LeaderboardEntries {
+  target: Record<string, unknown> | null;
+  opponent: Record<string, unknown> | null;
+}
+
+const EMPTY_LEADERBOARD_ENTRIES: LeaderboardEntries = { target: null, opponent: null };
+
+function parseLeaderboardEntries(row: DataRow): LeaderboardEntries {
   const raw = row.results_leaderboard_json;
   if (typeof raw !== "string" || !raw.trim()) {
-    return { targetInactive: false, opponentInactive: false };
+    return EMPTY_LEADERBOARD_ENTRIES;
   }
   let entries: unknown;
   try {
     entries = JSON.parse(raw);
   } catch {
-    return { targetInactive: false, opponentInactive: false };
+    return EMPTY_LEADERBOARD_ENTRIES;
   }
   if (!Array.isArray(entries)) {
-    return { targetInactive: false, opponentInactive: false };
+    return EMPTY_LEADERBOARD_ENTRIES;
   }
 
   const targetId = normId(row.target_id);
@@ -361,10 +363,33 @@ function leaderboardActivity(row: DataRow): { targetInactive: boolean; opponentI
   if (!opponent && target) {
     opponent = objects.find((entry) => entry !== target) ?? null;
   }
+  return { target, opponent };
+}
+
+function activityFromEntries(entries: LeaderboardEntries): { targetInactive: boolean; opponentInactive: boolean } {
   return {
-    targetInactive: Boolean(target && target.active === false),
-    opponentInactive: Boolean(opponent && opponent.active === false),
+    targetInactive: Boolean(entries.target && entries.target.active === false),
+    opponentInactive: Boolean(entries.opponent && entries.opponent.active === false),
   };
+}
+
+// leaderboard.stats のAPIフィールド名は表示名と異なる(例: VSは"vsscore")。
+const LEADERBOARD_METRIC_FIELDS: Array<["apm" | "pps" | "vsscore" | "btb", string]> = [
+  ["apm", "apm"],
+  ["pps", "pps"],
+  ["vsscore", "vs"],
+  ["btb", "btb"],
+];
+
+function leaderboardStat(entry: Record<string, unknown> | null, field: "apm" | "pps" | "vsscore" | "btb"): number | null {
+  if (!entry) {
+    return null;
+  }
+  const stats = entry.stats;
+  if (!stats || typeof stats !== "object") {
+    return null;
+  }
+  return toNumber((stats as Record<string, unknown>)[field]);
 }
 
 export function metricPairs(): Array<[string, string, string]> {

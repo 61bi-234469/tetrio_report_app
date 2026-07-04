@@ -68,7 +68,7 @@ describe("tetrio api fetcher", () => {
     expect(result.cachedUntil).toBe(2000);
   });
 
-  it("preserves leaderboard activity so API-derived DQ results are counted outside normal analysis", () => {
+  it("preserves leaderboard activity so API-derived DQ results are counted inside the DQ-included analysis", () => {
     const records = [
       record("dq-win", "2026-07-01T00:00:00.000Z", 2, 0, true, false),
       record("dq-loss", "2026-07-02T00:00:00.000Z", 0, 2, false, true),
@@ -91,8 +91,9 @@ describe("tetrio api fetcher", () => {
     expect(summary.kpis.dq_wins).toBe(1);
     expect(summary.kpis.dq_losses).toBe(1);
     expect(summary.meta.matches).toBe(2);
-    expect(summary.meta.analysis_matches).toBe(0);
-    expect(bundle.matches).toHaveLength(0);
+    // DQ込み一本化: analysis_matches はDQ試合も含む公式勝敗マッチ全体を指す。
+    expect(summary.meta.analysis_matches).toBe(2);
+    expect(bundle.matches).toHaveLength(2);
   });
 
   it("leaves extras league games won null when upstream does not provide it", () => {

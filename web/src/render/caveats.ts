@@ -66,7 +66,7 @@ export const CAVEATS: Record<CaveatId, Caveat> = {
   },
   summaryRecentSplit: {
     short: "現在値と履歴値",
-    full: "現在TL値はsummary API由来。直近窓は保存済みrecent records由来で、対象範囲・取得タイミングが異なるため一致しない場合がある。",
+    full: "現在TL値はsummary API由来のサーバ側集計で、ラウンド長・プレイ時間の重みを受ける。直近窓は保存済みrecent recordsのマッチ等重み平均のため基礎値がわずかにずれ、派生指標で差が見える場合がある。summary APIは現在値のみ返すため、窓別比較は自前集計を使う。",
   },
   binBoundary: {
     short: "ビン境界",

@@ -536,8 +536,8 @@ export function renderChapters(bundle: AnalysisBundle, anon: Anonymizer): string
   const sessionDefinition = (s.session_definition ?? {}) as Record<string, any>;
   const sessionGapMinutes = sessionDefinition.gap_minutes ?? 10;
   const worstPos = positions.length ? minBy(positions, (x) => num(x.excess) ?? Infinity)! : null;
-  let c12 = chapterHeader(12, "連戦の流れとセッション内のマッチ位置", "マッチとマッチの間で続く流れ。連勝連敗・前マッチ結果・セッション内のマッチ位置をマッチ単位で集計。");
-  c12 += "<h3>連勝・連敗と前マッチ結果（マッチ単位）</h3>" + grain("マッチ単位。直前までの連勝・連敗段階ごとに、次の1マッチの結果を見る。") + fig("14_streak_distribution", "連勝連敗分布");
+  let c12 = chapterHeader(12, "連戦の流れとセッション内のマッチ位置", "マッチとマッチの間で続く流れ。全期間の連続勝敗、同一セッション内の直前結果、セッション内のマッチ位置をマッチ単位で集計。");
+  c12 += "<h3>連勝・連敗と前マッチ結果（マッチ単位）</h3>" + grain("マッチ単位。全期間の連続勝敗は個人記録、同一セッション内の直前連勝・連敗段階は次の1マッチの結果を見る。") + fig("14_streak_distribution", "連勝連敗分布");
   if (streakStates.length) {
     c12 += table(
       ["直前段階", "次マッチ勝率", "期待超過", "ΔAPM", "ΔPPS", "ΔVS", "ΔArea", "標本"],
@@ -547,12 +547,12 @@ export function renderChapters(bundle: AnalysisBundle, anon: Anonymizer): string
   }
   const afterLossStates = streakStates.filter((r) => ["1連敗", "2連敗", "3連敗", "4連敗以上"].includes(r.label));
   c12 += block(
-    `最長連勝は${streak.max_win}、最長連敗は${streak.max_loss}。` +
+    `全期間の最長連勝は${streak.max_win}、最長連敗は${streak.max_loss}。セッション内最大は連勝${streak.session_max_win ?? streak.max_win}、連敗${streak.session_max_loss ?? streak.max_loss}。` +
       (afterLossStates.length
         ? "連敗段階の期待超過は" + afterLossStates.map((r) => `${r.label}${pp(r.excess)}（n=${r.n}）`).join("、") + "。"
         : "段階別の標本が不足。"),
     ["cohortBias"],
-    "棒=セッション別の最大連勝/連敗（縦軸=セッション数）。表=直前段階別の次マッチ実績/期待超過/指標差分。",
+    "棒=セッション別の最大連勝/連敗（縦軸=セッション数）。表=同一セッション内の直前段階別の次マッチ実績/期待超過/指標差分。",
   );
   c12 += "<h3>セッション内のマッチ位置（マッチ単位）</h3>" + grain(`セッション内のマッチ位置。前マッチ完了直後から次マッチ開始までの間隔が${sessionGapMinutes}分以内の連戦で、何マッチ目かを見る。`) + fig("16_session_position", "セッション位置");
   if (positions.length) {

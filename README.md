@@ -31,6 +31,8 @@ Cloudflare Workers 上で動くWebアプリです。ブラウザーでユーザ�
 - Workerは TETRA CHANNEL API への軽量プロキシ（`/api/league-page`）として動作し、レポートの集計・描画はブラウザー側（`public/report.js`）で行います。Workers無料プランでも動かせる構成です。
 - OSを問わず利用できます。
 - 入力したユーザー名の公開Tetra Leagueデータのみを使用します。
+- 戦績・能力値集計はDQ（不戦勝・不戦敗）を含む公式勝敗マッチ全体を対象にします。通常勝率のみDQ除外の参考指標として残しています。
+- マッチ単位のAPM/PPS/VSなどの能力値は、APIの試合集計値（`leaderboard.stats`）を優先し、欠損時のみラウンド平均で補います。
 
 ### 開発・ローカル実行
 

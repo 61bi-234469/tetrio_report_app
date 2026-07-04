@@ -765,7 +765,7 @@ function buildSessionDecay(decayRows: Array<Record<string, unknown>>): ChartConf
   }];
   for (const [label, key, color] of metricSeries) {
     datasets.push({
-      ...lineDataset(label, indexTo100(decayRows.map((row) => numberOrNull(row[key]))), color),
+      ...lineDataset(label, sessionDecayIndexTo100(decayRows, key), color),
       type: "line",
       pointRadius: 3,
       yAxisID: "y2",
@@ -951,12 +951,30 @@ function deltaNotes(rows: Array<Record<string, unknown>>): Array<string | null> 
   });
 }
 
-function indexTo100(values: Array<number | null>): Array<number | null> {
-  const base = values.find((value) => value !== null && value !== 0);
-  if (base === null || base === undefined) {
+export function indexTo100(values: Array<number | null>): Array<number | null> {
+  return indexTo100From(values, 0);
+}
+
+export function sessionDecayIndexTo100(decayRows: Array<Record<string, unknown>>, key: string): Array<number | null> {
+  const values = decayRows.map((row) => numberOrNull(row[key]));
+  const openerIndex = decayRows.findIndex((row) => sessionPositionNumber(row) === 1);
+  if (openerIndex < 0) {
+    return values.map(() => null);
+  }
+  return indexTo100From(values, openerIndex);
+}
+
+function indexTo100From(values: Array<number | null>, baseIndex: number): Array<number | null> {
+  const base = values[baseIndex];
+  if (base === null || base === undefined || base === 0) {
     return values.map(() => null);
   }
   return values.map((value) => (value === null ? null : round2((value / base) * 100)));
+}
+
+function sessionPositionNumber(row: Record<string, unknown>): number | null {
+  const match = String(row.label ?? "").match(/^\d+/);
+  return match ? Number(match[0]) : null;
 }
 
 function opponentMetricColumn(label: string, selfColumn: string): string {

@@ -43,7 +43,8 @@ export function analyzeReport(roundRows: RoundRow[], options: AnalyzeOptions): A
   const monthly = buildMonthly(completed);
   const tiebreak = analyzeTiebreaks(eligibleRounds, completed);
   const scoreStates = buildScoreStateRounds(eligibleRounds, completed);
-  const streak = sessionMaxRunLengths(completed);
+  const overallStreak = runLengths(completed.map((match) => Boolean(match.won)));
+  const sessionStreak = sessionMaxRunLengths(completed);
   const recentN = Math.min(RECENT_MATCH_WINDOW, completed.length);
   const recentMatches = completed.slice(-recentN);
   const recentIds = new Set(recentMatches.map((match) => Number(match.match_number)));
@@ -74,7 +75,7 @@ export function analyzeReport(roundRows: RoundRow[], options: AnalyzeOptions): A
     ["16–19時", "16–19時"],
     ["20–23時", "20–23時"],
   ], baseMeans);
-  const records = buildRecords(eligibleRounds, completed, streak, tiebreak.summary);
+  const records = buildRecords(eligibleRounds, completed, overallStreak, sessionStreak, tiebreak.summary);
   const resultCounts = countBy(matches, (match) => String(match.match_result_norm ?? ""));
   const knownResults = new Set([
     ...OFFICIAL_RESULTS,
@@ -181,10 +182,16 @@ export function analyzeReport(roundRows: RoundRow[], options: AnalyzeOptions): A
     tr_gap: trGap,
     drawdown,
     streaks: {
-      max_win: Math.max(0, ...streak.wins),
-      max_loss: Math.max(0, ...streak.losses),
-      win_runs: streak.wins,
-      loss_runs: streak.losses,
+      max_win: Math.max(0, ...overallStreak.wins),
+      max_loss: Math.max(0, ...overallStreak.losses),
+      overall_win_runs: overallStreak.wins,
+      overall_loss_runs: overallStreak.losses,
+      session_max_win: Math.max(0, ...sessionStreak.wins),
+      session_max_loss: Math.max(0, ...sessionStreak.losses),
+      session_win_runs: sessionStreak.wins,
+      session_loss_runs: sessionStreak.losses,
+      win_runs: sessionStreak.wins,
+      loss_runs: sessionStreak.losses,
       after_win_rate: groupWinRate(completed.filter((match) => match.previous_won === true)),
       after_win_n: completed.filter((match) => match.previous_won === true).length,
       after_loss_rate: groupWinRate(completed.filter((match) => match.previous_won === false)),
@@ -756,7 +763,13 @@ function buildSessionPositions(matches: MatchRow[], base: Record<string, number 
   }).filter((row) => row.n > 0);
 }
 
-function buildRecords(rounds: RoundRow[], matches: MatchRow[], streak: { wins: number[]; losses: number[] }, tiebreak: Record<string, unknown>): Array<Record<string, unknown>> {
+function buildRecords(
+  rounds: RoundRow[],
+  matches: MatchRow[],
+  overallStreak: { wins: number[]; losses: number[] },
+  sessionStreak: { wins: number[]; losses: number[] },
+  tiebreak: Record<string, unknown>,
+): Array<Record<string, unknown>> {
   const records: Array<Record<string, unknown>> = [];
   const add = (name: string, value: unknown, unit: string, row: MatchRow | RoundRow | null, scope: string, note = "") => {
     records.push({
@@ -847,8 +860,10 @@ function buildRecords(rounds: RoundRow[], matches: MatchRow[], streak: { wins: n
     if (row) add(`連続${rollingN}マッチ最高勝率`, bestValue, "%", row, `${rollingN}マッチ窓`);
   }
 
-  add("最長連勝", Math.max(0, ...streak.wins), "マッチ", null, "連勝・連敗");
-  add("最長連敗", Math.max(0, ...streak.losses), "マッチ", null, "連勝・連敗");
+  add("最長連勝", Math.max(0, ...overallStreak.wins), "マッチ", null, "全期間の連続勝敗");
+  add("最長連敗", Math.max(0, ...overallStreak.losses), "マッチ", null, "全期間の連続勝敗");
+  add("セッション内最長連勝", Math.max(0, ...sessionStreak.wins), "マッチ", null, "セッション内連勝・連敗");
+  add("セッション内最長連敗", Math.max(0, ...sessionStreak.losses), "マッチ", null, "セッション内連勝・連敗");
   add("タイブレーク勝率", tiebreak.win_rate ?? null, "%", null, "タイブレーク", `n=${tiebreak.n ?? 0}`);
   const caughtUp = (tiebreak.caught_up ?? {}) as Record<string, unknown>;
   const caughtFrom = (tiebreak.caught_from ?? {}) as Record<string, unknown>;

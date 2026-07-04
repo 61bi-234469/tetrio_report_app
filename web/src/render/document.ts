@@ -55,9 +55,10 @@ function buildKpis(bundle: AnalysisBundle): string {
 function buildGlossary(bundle: AnalysisBundle): string {
   const gap = (bundle.summary as any).session_definition?.gap_minutes ?? 10;
   const items: Array<[string, string | undefined]> = [
-    ["マッチ", "Tetra Leagueの1マッチ。勝敗・TR変動・期待勝率・連勝連敗・セッション位置はマッチ単位で扱う。"],
+    ["マッチ", "Tetra Leagueの1マッチ。勝敗・TR変動・期待勝率・全期間の連続勝敗・セッション位置はマッチ単位で扱う。"],
     ["ラウンド", "マッチ内の1本。ラウンド勝敗・決着時間・開始前スコア状況・最終ラウンドの能力変化はラウンド単位で扱う。"],
     ["セッション", `前マッチ完了直後から次マッチ開始までの間隔が${gap}分以内の連戦まとまり。セッション内の1マッチ目・2マッチ目・11マッチ目以降などの位置をマッチ単位で集計。`],
+    ["連勝連敗", "最長連勝・最長連敗は全期間の連続勝敗。直前段階別の表と分布図は同一セッション内の連勝連敗を扱う。"],
     ["TR", TERM_TITLES.TR],
     ["Est. TR", TERM_TITLES["Est. TR"]],
     ["Glicko", TERM_TITLES.Glicko],

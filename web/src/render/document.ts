@@ -439,6 +439,7 @@ td.l,th.l{text-align:left;}
 .rc-cond{font-weight:700;font-size:13.5px;}
 .rc-detail{font-size:12px;color:var(--muted);margin-top:3px;}
 .rc-detail:empty{display:none;}
+.rc-watch{font-size:12px;margin-top:3px;}
 .rc-target{font-size:13px;margin-top:6px;}
 .rc-link{margin-top:7px;font-size:13px;font-weight:700;}
 details{background:var(--card);border:1px solid var(--grid);border-radius:12px;padding:6px 16px;margin:14px 0;}

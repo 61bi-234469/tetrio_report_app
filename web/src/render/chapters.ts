@@ -588,7 +588,7 @@ export function renderChapters(bundle: AnalysisBundle, anon: Anonymizer): string
   // 第13章 リプレイ確認候補
   const replayCandidates = (s.replay_candidates ?? []) as Array<Record<string, any>>;
   const topReplay = replayCandidates[0];
-  let c13 = chapterHeader(13, "リプレイ確認候補", "能力差分や時間が外れたラウンドを、リプレイで振り返る候補として並べる。");
+  let c13 = chapterHeader(13, "リプレイ確認候補", "接戦の分岐点や普段と挙動が違ったラウンドを、リプレイで振り返る候補として並べる。各候補に見るポイントを付す。");
   if (replayCandidates.length) {
     const replayItems = replayCandidates.map((r) => {
       const opponent = tetrioProfileLink(r.opponent ?? r.opponent_id, r.opponent ?? r.opponent_id ?? "?", anon);
@@ -604,6 +604,8 @@ export function renderChapters(bundle: AnalysisBundle, anon: Anonymizer): string
       const condition = htmlEscape(String(r.condition ?? ""));
       const detailText = r.detail ? htmlEscape(String(r.detail)) : "";
       const detail = detailText ? `<br><span class="muted">${detailText}</span>` : "";
+      const watch = r.watch_point ? htmlEscape(String(r.watch_point)) : "";
+      const watchLine = watch ? `<br><span class="muted">見るポイント: ${watch}</span>` : "";
       const matchLine = `<span class="muted">${dateText(r.date)} ${score} vs</span> ${opponent}`;
       let targetLabel: string;
       if (String(r.kind ?? "round") === "match") {
@@ -624,7 +626,7 @@ export function renderChapters(bundle: AnalysisBundle, anon: Anonymizer): string
           `<br>${matchLine}`;
       }
       const link = r.replay_available ? replayLink(r.replay_id, anon) : `<span class="muted">削除済み</span>`;
-      return { scene, priorityBadge, resultBadge, condition, detail, detailText, targetLabel, link };
+      return { scene, priorityBadge, resultBadge, condition, detail, detailText, watch, watchLine, targetLabel, link };
     });
     const replaySection = (title: string, scene: "勝利" | "敗北") => {
       const items = replayItems.filter((it) => it.scene === scene);
@@ -634,7 +636,7 @@ export function renderChapters(bundle: AnalysisBundle, anon: Anonymizer): string
       // デスクトップは一覧表、モバイルは1候補=1カードで縦のスクロール距離を抑える。
       const desktopTable = table(
         ["優先度", "見るリプレイ（条件）", "対象", "リプレイ"],
-        items.map((it) => [it.priorityBadge, it.condition + it.detail, it.targetLabel, it.link]),
+        items.map((it) => [it.priorityBadge, it.condition + it.detail + it.watchLine, it.targetLabel, it.link]),
         { leftCols: new Set([0, 1, 2, 3]), minWidth: 820, showDirection: false },
       );
       const mobileCards = items
@@ -642,6 +644,7 @@ export function renderChapters(bundle: AnalysisBundle, anon: Anonymizer): string
           `<div class="rc-card">` +
           `<div class="rc-head">${it.priorityBadge}${it.resultBadge}<span class="rc-cond">${it.condition}</span></div>` +
           `<div class="rc-detail">${it.detailText}</div>` +
+          `${it.watch ? `<div class="rc-watch muted">見るポイント: ${it.watch}</div>` : ""}` +
           `<div class="rc-target">${it.targetLabel}</div>` +
           `<div class="rc-link">${it.link}</div>` +
           `</div>`,

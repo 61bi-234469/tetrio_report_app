@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { analyzeReport } from "../src/analysis/analyze";
 import { CHART_IDS } from "../src/charts/configs";
 import { renderDocument } from "../src/render/document";
+import { advantageTable } from "../src/render/components";
 import type { RoundRow } from "../src/analysis/types";
 
 describe("report document", () => {
@@ -34,6 +35,10 @@ describe("report document", () => {
     expect(html).toContain("summary API 由来の現在値");
     expect(html).toContain("summary API 由来の現在値を取得不可");
     expect(html).toContain("履歴分析の主要指標");
+    expect(html).toContain("分析対象");
+    expect(html).not.toContain("通常分析");
+    expect(html).toContain("開始前スコア状況別ラウンド勝率");
+    expect(html).not.toContain("次ラウンド勝率");
     // 各チャートidは文書全体でちょうど1回だけ出現する（章＋付録の配置契約）。
     for (const id of CHART_IDS) {
       const matches = html.match(new RegExp(`id="${id}"`, "g")) ?? [];
@@ -65,6 +70,17 @@ describe("report document", () => {
     expect(html).toContain('id="appendix-monthly"');
     expect(html).toContain('id="appendix-records"');
     expect(html).toContain('id="appendix-excess-grid"');
+  });
+
+  it("separates total matches from expected-win sample counts in advantage tables", () => {
+    const html = advantageTable([
+      { label: "A", all_n: 3, n: 2, actual: 0.5, expected: 0.4, excess: 0.1 },
+    ]);
+
+    expect(html).toContain("試合数");
+    expect(html).toContain("期待対象");
+    expect(html).toContain(">3<");
+    expect(html).toContain(">2<");
   });
 
   it("anonymizes personal data when the option is set", () => {

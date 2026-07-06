@@ -184,7 +184,7 @@ export function buildChartConfigs(bundle: AnalysisBundle, anon: Anonymizer): Rec
   // 17: 決着時間帯別のラウンド勝率（線・左軸%）と標本数（棒・右軸）。
   configs["17_round_duration"] = buildDurationWinRate(summary.duration_bins as Array<Record<string, unknown>>);
 
-  // 18: スコア状況別・次ラウンド勝率（状況で色分け）。
+  // 18: 開始前スコア状況別ラウンド勝率（状況で色分け）。
   configs["18_score_state_next_round"] = buildScoreStates(summary.score_states as Array<Record<string, unknown>>);
 
   // 19: 決着時間帯別の能力差分（ΔPPSのみ右軸、0基準線）。
@@ -208,7 +208,10 @@ export function buildChartConfigs(bundle: AnalysisBundle, anon: Anonymizer): Rec
   configs["22_excess_hour"] = actualVsExpectedBars(excessHour.map((row) => String(row.label)), excessHour, "時間帯（JST）");
 
   // 25: プレイスタイル相性マップ（自分の平均位置マーカーつき）。
-  configs["25_style_matchup_plane"] = buildStylePlane(matches, summary.style_matchup_plane as Record<string, unknown>);
+  const stylePlane = summary.style_matchup_plane as Record<string, unknown>;
+  if (Array.isArray(stylePlane.quadrants) && stylePlane.quadrants.length > 0) {
+    configs["25_style_matchup_plane"] = buildStylePlane(matches, stylePlane);
+  }
 
   // 27: ライバル（勝率で赤→緑に塗り分け、ラベルに遭遇回数）。
   configs["27_rivals"] = buildRivals(summary.rivals as Array<Record<string, unknown>>, anon);
@@ -646,7 +649,7 @@ function buildScoreStates(scoreStates: Array<Record<string, unknown>>): ChartCon
     data: {
       labels: scoreStates.map((row) => String(row.label)),
       datasets: [{
-        label: "次ラウンド勝率",
+        label: "ラウンド勝率",
         data: scoreStates.map((row) => pctOrNull(row.win_rate)),
         backgroundColor: scoreStates.map((_, index) => alphaColor(stateColors[index] ?? "#94a3b8", 0.75)),
         borderColor: scoreStates.map((_, index) => stateColors[index] ?? "#94a3b8"),
@@ -655,7 +658,7 @@ function buildScoreStates(scoreStates: Array<Record<string, unknown>>): ChartCon
         $notes: nNotes(scoreStates),
       }],
     },
-    options: baseOptions({ x: axis("開始前スコア状況"), y: pctAxis("勝率（%）") }),
+    options: baseOptions({ x: axis("開始前スコア状況"), y: pctAxis("ラウンド勝率（%）") }),
   }, [{ y: 50 }]);
 }
 

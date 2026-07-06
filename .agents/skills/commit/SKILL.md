@@ -23,7 +23,9 @@ commit habits for this repository.
    `Model: GPT-5.5 Codex` or `Model: Claude Opus 4.8`. Use the model powering the current session,
    not a guess. Match the existing `Model: <Vendor> <Name>` style seen in `git log`.
 4. **No push** to any remote without explicit user confirmation immediately beforehand. This skill
-   stops at the commit.
+   stops at the commit. Note the stakes: pushing `develop` with `web/` changes auto-deploys the
+   develop Worker via GitHub Actions (see `.agents/skills/deploy-web/SKILL.md`), so a push is a
+   de-facto deploy, not just a backup.
 5. **Leave unrelated changes intact.** If the worktree has user edits unrelated to your task, do not
    stage or revert them — stage only the files your change touched.
 
@@ -46,6 +48,19 @@ commit habits for this repository.
 
    Model: <Vendor> <Name>
    EOF
+   ```
+
+   If only PowerShell is available, pipe a single-quoted here-string instead (the closing `'@` must
+   start at column 0):
+
+   ```powershell
+   @'
+   <subject line>
+
+   <body>
+
+   Model: <Vendor> <Name>
+   '@ | git commit --author="61bi-234469 <121346275+61bi-234469@users.noreply.github.com>" -F -
    ```
 
 5. Confirm with `git log -1 --format='%an <%ae>%n%n%B'` that the author and Model trailer landed, and

@@ -19,10 +19,11 @@ green `npm run check` proves the logic but not that the page paints. Do both.
 
 ## Step 1 — Deterministic gate
 
-From `web/`, run the full check. This is the same command CI runs.
+From `web/`, run the full check. This is the same command CI runs. In PowerShell use `npm.cmd`
+(the `npm.ps1` shim can fail under execution policy).
 
 ```powershell
-npm run check --prefix web
+npm.cmd run check --prefix web
 ```
 
 `npm run check` = typecheck + client bundle build + vitest. If it fails, stop and fix the source
@@ -37,9 +38,16 @@ may stop here and report the check result. Otherwise continue to the browser ste
 
 Start the dev server and open the report. Use whatever browser-automation tooling this agent has:
 Claude Code has `preview_*` tools (server name `web-dev`, port 8788, from `.claude/launch.json`);
-otherwise start the server with `npm run dev --prefix web` (default port 8787) and drive it with your
-available browser tool. Do not verify by curling HTML alone — the report is rendered client-side, so
-you need a real browser to know it painted.
+otherwise start the server with `npm run dev:8788 --prefix web` (8787 is often occupied by a stray
+workerd) and drive it with your available browser tool. Do not verify by curling HTML alone — the
+report is rendered client-side, so you need a real browser to know it painted.
+
+**If no browser tooling is available in this session** (no preview tools scoped to this repo, no
+connected browser — this has actually happened): do not skip silently and do not downgrade the
+claim. Still start the dev server and confirm it answers HTTP 200, then report explicitly that the
+deterministic gate passed but **the browser render step was NOT performed** and must be done in a
+follow-up session. Record that fact in the relevant `docs/` plan file's results section if one
+exists. Never present `npm run check` alone as full verification of a visual change.
 
 1. Start / reuse the dev server.
 2. The report needs live data: the Worker is a thin proxy to the TETRA CHANNEL API, so generating a
@@ -58,6 +66,9 @@ you need a real browser to know it painted.
      screen.
    - If a chart change was the point of the edit, confirm the expected chart ids exist in the DOM
      (e.g. `01_tr_history`, `29_session_decay`).
+   - If the change touches responsive markup (some sections render a table on desktop but cards on
+     mobile, e.g. chapter 13's `rc-card`), check both a desktop width and a mobile width
+     (`preview_resize` or equivalent).
 5. If anything is wrong, read the relevant source under `web/src/`, fix it, let the client rebuild
    (`npm run build:client --prefix web`, or rerun `npm run dev`), reload the page, and re-check.
 

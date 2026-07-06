@@ -64,8 +64,15 @@ describe("report document", () => {
     expect(html).toContain('id="note-reverseCausation"');
     expect(html).toContain('class="toc"');
     expect(html).toContain("先に用語を確認する");
+    expect(html).toContain("<dt>Opener</dt><dd>開幕から火力を出す傾向。</dd>");
+    expect(html).toContain("<dt>Stride</dt><dd>中盤以降も攻撃を継続する傾向。</dd>");
+    expect(html).toContain("<dt>Inf DS</dt><dd>長期戦や掘り合いへの対応傾向。</dd>");
+    expect(html).toContain("<dt>Plonk</dt><dd>受け寄り・低速寄りの展開で粘る傾向。</dd>");
+    expect(html).not.toContain("AUC/Brier/Log loss");
     expect(html).toContain("HTMLを保存");
     expect(html).toContain("リプレイ確認候補");
+    expect(html).toContain('href="#note-replayNotInspected"');
+    expect(html).toContain('id="note-replayNotInspected"');
     // 付録A/B/C。
     expect(html).toContain('id="appendix-monthly"');
     expect(html).toContain('id="appendix-records"');

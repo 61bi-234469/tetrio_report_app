@@ -18,6 +18,7 @@ export type CaveatId =
   | "binBoundary"
   | "privacy"
   | "replayExpiry"
+  | "replayNotInspected"
   | "dqIncluded"
   | "matchLevelSource"
   | "roundDqMixed";
@@ -79,6 +80,10 @@ export const CAVEATS: Record<CaveatId, Caveat> = {
   replayExpiry: {
     short: "リプレイ期限",
     full: "リプレイは一定期間でサーバーから削除され、古いマッチは視聴できない。APIデータは盤面や入力を含まない。",
+  },
+  replayNotInspected: {
+    short: "内容未解析",
+    full: "候補抽出はAPIの統計値・スコア・時間・勝敗から行い、リプレイ映像・盤面・入力内容は解析しない。",
   },
   dqIncluded: {
     short: "DQ込み",

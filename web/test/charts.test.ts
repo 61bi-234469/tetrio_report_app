@@ -51,6 +51,8 @@ describe("chart helpers", () => {
     });
     const configs = buildChartConfigs(bundle, createAnonymizer(false));
 
+    expect(configs["25_style_matchup_plane"].data.labels).toEqual(["25_style_matchup_plane"]);
+
     for (const [id, config] of Object.entries(configs)) {
       const labels = config.data.labels;
       if (!labels) {

@@ -102,5 +102,9 @@ Refresh `samples/sample_web_report.html` with the current web edition output for
 ## Notes
 
 - `61bi_234469` is explicitly allowed by the repository privacy rules as the owner's own handle.
+- The README sample links go through `htmlpreview.github.io` and point at the `develop` branch blob,
+  so refreshing the file needs no README edit unless the file path itself changes.
+- Commit the refreshed sample via `.agents/skills/commit/SKILL.md`; do not push without explicit
+  confirmation (a `develop` push also triggers the develop Worker deploy).
 - Use `npm.cmd` and `npx.cmd` in PowerShell to avoid execution-policy failures from `npm.ps1` / `npx.ps1`.
 - If Wrangler local runtime crashes after the response is produced, regenerate through `/api/report` and verify the saved HTML. Treat `web/.wrangler-config/` and Wrangler logs as local-only artifacts.

@@ -18,8 +18,6 @@ export const METRIC_DIGITS: Record<string, number> = {
 };
 
 export const DIRECTION: Record<string, string> = {
-  Brier: "↓良い",
-  "Log loss": "↓良い",
   最大DD: "浅いほど良い",
   最大ドローダウン: "浅いほど良い",
   "Cheese Index": "低めが安定寄り",
@@ -44,9 +42,10 @@ export const TERM_TITLES: Record<string, string> = {
   Glicko: "TETR.IOの実力推定に近いレーティング系指標。",
   RD: "Rating Deviation。レート推定の不確実性。",
   "Est. TR": "能力指標から推定したTRの目安。入力データに既存の推定値がある場合に使用。",
-  AUC: "勝者を上位に並べる性能。高いほど良い。",
-  Brier: "予測確率の誤差。低いほど良い。",
-  "Log loss": "予測確率の外し方への罰則。低いほど良い。",
+  Opener: "開幕から火力を出す傾向。",
+  Stride: "中盤以降も攻撃を継続する傾向。",
+  "Inf DS": "長期戦や掘り合いへの対応傾向。",
+  Plonk: "受け寄り・低速寄りの展開で粘る傾向。",
   "Cohen's d": "勝利時と敗北時の差の大きさ。絶対値が大きいほど差が大きい。",
   CV: "変動係数。平均に対するばらつき。低いほど安定。",
   期待勝率: "対戦前Glicko/RDから見た勝つ確率の目安。",

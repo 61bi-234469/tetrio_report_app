@@ -5,7 +5,7 @@ import { DIRECTION, TERM_TITLES, datefmt, nfmt, pct, pp } from "./format";
 // 方向注記を付与する見出しラベル集合（render_report.py header_html 準拠）。
 const DIRECTION_UP = new Set([
   "APM", "PPS", "VS", "APP", "DS/S", "DS/Second", "DS/P", "DS/Piece", "APP+DS/Piece",
-  "GbE", "Garbage Eff.", "VS/APM", "Cheese Index", "Area", "Est. TR", "AUC",
+  "GbE", "Garbage Eff.", "VS/APM", "Cheese Index", "Area", "Est. TR",
   "勝率", "期待超過", "TR増減", "ピーク", "現在TR", "ピークTR",
 ]);
 

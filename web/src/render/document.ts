@@ -17,7 +17,7 @@ function buildSubtitle(bundle: AnalysisBundle, anon: Anonymizer): string {
   const name = anon.subject(s.source.username);
   return (
     `対象プレイヤー：<b>${htmlEscape(name)}</b>　／　対象期間：${datefmt(meta.start)} 〜 ${datefmt(meta.end)}（JST）　／　生成日：${htmlEscape(String(s.source.fetched_at).slice(0, 10))}<br>` +
-    `公式マッチ数 ${INT(meta.matches)}　通常分析 ${INT(meta.analysis_matches ?? meta.matches)}マッチ　ラウンド数 ${INT(meta.rounds)}　セッション数 ${INT(meta.sessions ?? 0)}　稼働日数 ${meta.active_days}日　対戦相手 ${INT(meta.opponents)}名`
+    `公式マッチ数 ${INT(meta.matches)}　分析対象 ${INT(meta.analysis_matches ?? meta.matches)}マッチ　ラウンド数 ${INT(meta.rounds)}　セッション数 ${INT(meta.sessions ?? 0)}　稼働日数 ${meta.active_days}日　対戦相手 ${INT(meta.opponents)}名`
   );
 }
 

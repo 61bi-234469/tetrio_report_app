@@ -318,10 +318,10 @@ export function renderChapters(bundle: AnalysisBundle, anon: Anonymizer): string
   c5 += advantageTable(dominance);
   c5 += block(
     domBest
-      ? `最も実績勝率が高い分類は${htmlEscape(String(domBest.label))}で、実績${pct(domBest.actual)}・期待${pct(domBest.expected)}・期待超過${pp(domBest.excess)}（n=${domBest.n}）。`
+      ? `最も実績勝率が高い分類は${htmlEscape(String(domBest.label))}で、実績${pct(domBest.actual)}・期待${pct(domBest.expected)}・期待超過${pp(domBest.excess)}（期待対象n=${domBest.n}）。`
       : "APM・VS分類を集計不可。",
-    ["cohortBias"],
-    "散布図=相対APM差×相対VS差の勝敗。表=4分類の実績/期待/期待超過。",
+    ["cohortBias", "glickoMissing"],
+    "散布図=相対APM差×相対VS差の勝敗。表=4分類の実績/期待/期待超過。期待対象はGlicko/RD欠損を除く。",
   );
   const ppsDom = (s.pps_vs_dominance ?? []) as Array<Record<string, any>>;
   const ppsBest = ppsDom.length ? maxBy(ppsDom, (x) => num(x.actual) ?? -1)! : null;
@@ -331,10 +331,10 @@ export function renderChapters(bundle: AnalysisBundle, anon: Anonymizer): string
   }
   c5 += block(
     ppsBest
-      ? `最も実績勝率が高い分類は${htmlEscape(String(ppsBest.label))}で、実績${pct(ppsBest.actual)}・期待${pct(ppsBest.expected)}・期待超過${pp(ppsBest.excess)}（n=${ppsBest.n}）。`
+      ? `最も実績勝率が高い分類は${htmlEscape(String(ppsBest.label))}で、実績${pct(ppsBest.actual)}・期待${pct(ppsBest.expected)}・期待超過${pp(ppsBest.excess)}（期待対象n=${ppsBest.n}）。`
       : "PPS・VS分類を集計不可。",
-    ["cohortBias"],
-    "散布図=相対PPS差×相対VS差の勝敗。4分類の実績/期待/期待超過。",
+    ["cohortBias", "glickoMissing"],
+    "散布図=相対PPS差×相対VS差の勝敗。4分類の実績/期待/期待超過。期待対象はGlicko/RD欠損を除く。",
   );
   parts.push(chapterSection(5, c5));
 
@@ -353,14 +353,14 @@ export function renderChapters(bundle: AnalysisBundle, anon: Anonymizer): string
     const best = maxBy(usableQ, (q) => (num(q.actual) ?? -1))!;
     const worst = minBy(usableQ, (q) => (num(q.actual) ?? 2))!;
     const spTxt = sp.x !== null && sp.x !== undefined ? `Stride−Plonk${sgn(sp.x, 1)}・Opener−Inf DS${sgn(sp.y, 1)}` : "—";
-    planeResult = `自分の平均スタイル位置は${spTxt}。相手スタイルの4分類では、${htmlEscape(String(best.label))}で最高${pct(best.actual)}（期待超過${pp(best.excess)}、n=${best.n}）、${htmlEscape(String(worst.label))}で最低${pct(worst.actual)}（期待超過${pp(worst.excess)}、n=${worst.n}）。`;
+    planeResult = `自分の平均スタイル位置は${spTxt}。相手スタイルの4分類では、${htmlEscape(String(best.label))}で最高${pct(best.actual)}（期待超過${pp(best.excess)}、期待対象n=${best.n}）、${htmlEscape(String(worst.label))}で最低${pct(worst.actual)}（期待超過${pp(worst.excess)}、期待対象n=${worst.n}）。`;
   } else {
     planeResult = "相性マップに十分な標本なし。";
   }
   c6 += block(
     planeResult,
-    ["derivedMetric", "smallSample"],
-    "点=4スタイル値を2軸要約した相手位置。表=4分類の勝率と期待超過。",
+    ["derivedMetric", "smallSample", "glickoMissing"],
+    "点=4スタイル値を2軸要約した相手位置。表=4分類の勝率と期待超過。期待対象はGlicko/RD欠損を除く。",
   );
   parts.push(chapterSection(6, c6));
 
@@ -409,7 +409,7 @@ export function renderChapters(bundle: AnalysisBundle, anon: Anonymizer): string
   const tb = s.tiebreak as Record<string, any>;
   const scoreStates = (s.score_states ?? []) as Array<Record<string, any>>;
   const ssMap = new Map(scoreStates.map((x) => [x.label, x]));
-  let c9 = chapterHeader(9, "接戦・決着局面", "接戦になったマッチをどう閉じたか。タイブレークはマッチ単位、スコア状況別の次ラウンド勝率と最終ラウンドの能力変化はラウンド単位。");
+  let c9 = chapterHeader(9, "接戦・決着局面", "接戦になったマッチをどう閉じたか。タイブレークはマッチ単位、開始前スコア状況別のラウンド勝率と最終ラウンドの能力変化はラウンド単位。");
   const ssRows = ["同点", "リード時", "ビハインド時"].filter((l) => ssMap.has(l)).map((l) => {
     const x = ssMap.get(l)!;
     return [x.label, x.n, pct(x.win_rate), nfmt(x.score_diff_mean, 2)];
@@ -417,16 +417,16 @@ export function renderChapters(bundle: AnalysisBundle, anon: Anonymizer): string
   const leadSs = ssMap.get("リード時");
   const behindSs = ssMap.get("ビハインド時");
   const evenSs = ssMap.get("同点");
-  c9 += "<h3>スコア状況別・次ラウンド勝率（ラウンド単位）</h3>" + grain("ラウンド単位。開始前スコア状況ごとに、次の1ラウンドの勝率を見る。") + fig("18_score_state_next_round", "スコア状況別次ラウンド勝率");
+  c9 += "<h3>開始前スコア状況別ラウンド勝率（ラウンド単位）</h3>" + grain("ラウンド単位。各ラウンドの開始前スコア状況ごとに、そのラウンドを取った率を見る。") + fig("18_score_state_next_round", "開始前スコア状況別ラウンド勝率");
   if (ssRows.length) {
-    c9 += table(["状況", "標本", "次ラウンド勝率", "平均スコア差"], ssRows, { showDirection: false });
+    c9 += table(["状況", "標本", "ラウンド勝率", "平均スコア差"], ssRows, { showDirection: false });
   }
   c9 += block(
     leadSs && behindSs && evenSs
       ? `同点時は${pct(evenSs.win_rate)}（n=${evenSs.n}）、リード時は${pct(leadSs.win_rate)}（n=${leadSs.n}）、ビハインド時は${pct(behindSs.win_rate)}（n=${behindSs.n}）。`
       : "スコア状況別の標本を集計不可。",
     ["reverseCausation"],
-    "開始前スコアでリード/同点/ビハインドに分けた次ラウンド勝率。",
+    "開始前スコアでリード/同点/ビハインドに分けたラウンド勝率。",
   );
   const mpRows = ["自分MP", "相手MP", "双方MP"].filter((l) => ssMap.has(l)).map((l) => {
     const x = ssMap.get(l)!;
@@ -434,14 +434,14 @@ export function renderChapters(bundle: AnalysisBundle, anon: Anonymizer): string
   });
   const ownMp = ssMap.get("自分MP");
   const oppMp = ssMap.get("相手MP");
-  c9 += "<h3>マッチポイント到達後の勝率（マッチ単位）</h3>" + grain("マッチ内のマッチポイント局面を、次ラウンド単位で集計。");
+  c9 += "<h3>マッチポイント到達後の勝率（ラウンド単位）</h3>" + grain("マッチ内のマッチポイント局面を、ラウンド単位で集計。");
   if (mpRows.length) {
-    c9 += table(["状況", "標本", "次ラウンド勝率"], mpRows, { showDirection: false });
+    c9 += table(["状況", "標本", "ラウンド勝率"], mpRows, { showDirection: false });
   }
   c9 += block(
     ownMp && oppMp ? `自分MP時は${pct(ownMp.win_rate)}（n=${ownMp.n}）、相手MP時は${pct(oppMp.win_rate)}（n=${oppMp.n}）。` : "マッチポイント局面の標本を集計不可。",
     ["smallSample"],
-    "あと1本の局面を自分MP/相手MP/双方MPに分けた次ラウンド勝率。決着本数は最終スコア推定。",
+    "あと1本の局面を自分MP/相手MP/双方MPに分けたラウンド勝率。決着本数は最終スコア推定。",
   );
   c9 += "<h3>タイブレーク（マッチ単位）</h3>" + grain("マッチ単位。双方があと1ラウンドで勝利する最終決着局面だけを抽出。") + fig("15_tiebreak_analysis", "タイブレーク分析");
   const tbResult = (tb.n ?? 0)
@@ -540,7 +540,7 @@ export function renderChapters(bundle: AnalysisBundle, anon: Anonymizer): string
   c12 += "<h3>連勝・連敗と前マッチ結果（マッチ単位）</h3>" + grain("マッチ単位。全期間の連続勝敗は個人記録、同一セッション内の直前連勝・連敗段階は次の1マッチの結果を見る。") + fig("14_streak_distribution", "連勝連敗分布");
   if (streakStates.length) {
     c12 += table(
-      ["直前段階", "次マッチ勝率", "期待超過", "ΔAPM", "ΔPPS", "ΔVS", "ΔArea", "標本"],
+      ["直前段階", "次マッチ勝率", "期待超過", "ΔAPM", "ΔPPS", "ΔVS", "ΔArea", "期待対象"],
       streakStates.map((r) => [r.label, pct(r.win_rate), pp(r.excess), sgn(r.d_apm, 1), sgn(r.d_pps, 2), sgn(r.d_vs, 1), sgn(r.d_area, 1), r.n]),
       { leftCols: new Set([0]), mobileColumns: [0, 1, 2, 7] },
     );
@@ -549,23 +549,23 @@ export function renderChapters(bundle: AnalysisBundle, anon: Anonymizer): string
   c12 += block(
     `全期間の最長連勝は${streak.max_win}、最長連敗は${streak.max_loss}。セッション内最大は連勝${streak.session_max_win ?? streak.max_win}、連敗${streak.session_max_loss ?? streak.max_loss}。` +
       (afterLossStates.length
-        ? "連敗段階の期待超過は" + afterLossStates.map((r) => `${r.label}${pp(r.excess)}（n=${r.n}）`).join("、") + "。"
+        ? "連敗段階の期待超過は" + afterLossStates.map((r) => `${r.label}${pp(r.excess)}（期待対象n=${r.n}）`).join("、") + "。"
         : "段階別の標本が不足。"),
-    ["cohortBias"],
-    "棒=セッション別の最大連勝/連敗（縦軸=セッション数）。表=同一セッション内の直前段階別の次マッチ実績/期待超過/指標差分。",
+    ["cohortBias", "glickoMissing"],
+    "棒=セッション別の最大連勝/連敗（縦軸=セッション数）。表=同一セッション内の直前段階別の次マッチ実績/期待超過/指標差分。期待対象はGlicko/RD欠損を除く。",
   );
   c12 += "<h3>セッション内のマッチ位置（マッチ単位）</h3>" + grain(`セッション内のマッチ位置。前マッチ完了直後から次マッチ開始までの間隔が${sessionGapMinutes}分以内の連戦で、何マッチ目かを見る。`) + fig("16_session_position", "セッション位置");
   if (positions.length) {
     c12 += table(
-      ["区分", "実績", "期待", "期待超過", "ΔAPM", "ΔPPS", "ΔVS", "ΔArea", "標本"],
+      ["区分", "実績", "期待", "期待超過", "ΔAPM", "ΔPPS", "ΔVS", "ΔArea", "期待対象"],
       positions.map((p) => [p.label, pct(p.actual), pct(p.expected), pp(p.excess), sgn(p.d_apm, 1), sgn(p.d_pps, 2), sgn(p.d_vs, 1), sgn(p.d_area, 1), p.n]),
       { leftCols: new Set([0]), mobileColumns: [0, 1, 2, 3, 8] },
     );
   }
   c12 += block(
-    worstPos ? `期待超過が最も低い区分は${htmlEscape(String(worstPos.label))}で${pp(worstPos.excess)}（n=${worstPos.n}）、実績${pct(worstPos.actual)}・期待${pct(worstPos.expected)}。` : "セッション位置を集計不可。",
-    ["cohortBias", "smallSample"],
-    "1〜10マッチ目は各1、11以降はまとめ。指標差分=各区分平均と全完了マッチ平均の差。",
+    worstPos ? `期待超過が最も低い区分は${htmlEscape(String(worstPos.label))}で${pp(worstPos.excess)}（期待対象n=${worstPos.n}）、実績${pct(worstPos.actual)}・期待${pct(worstPos.expected)}。` : "セッション位置を集計不可。",
+    ["cohortBias", "smallSample", "glickoMissing"],
+    "1〜10マッチ目は各1、11以降はまとめ。指標差分=各区分平均と全完了マッチ平均の差。期待対象はGlicko/RD欠損を除く。",
   );
   const decay = (s.session_decay ?? []) as Array<Record<string, any>>;
   c12 += "<h3>セッション内の失速曲線（マッチ単位）</h3>" + grain("マッチ単位。セッション内のマッチ位置ごとに、勝率とAPM・PPS・VS・Areaがどう変わるかを見る。") + fig("29_session_decay", "セッション内の失速曲線");

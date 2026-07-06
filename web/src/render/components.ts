@@ -200,13 +200,26 @@ export function selectedRecordKpis(records: Array<Record<string, any>>): Array<{
 }
 
 export function advantageRows(rows: Array<Record<string, any>>): Cell[][] {
-  return rows.map((r) => [htmlEscape(String(r.label)), r.n, pct(r.actual), pct(r.expected), pp(r.excess)]);
+  const showExpectedN = rows.some((r) => r.all_n !== undefined && r.all_n !== null);
+  return rows.map((r) => {
+    const base: Cell[] = [htmlEscape(String(r.label))];
+    if (showExpectedN) {
+      base.push(r.all_n ?? r.n, r.n);
+    } else {
+      base.push(r.n);
+    }
+    return [...base, pct(r.actual), pct(r.expected), pp(r.excess)];
+  });
 }
 
 export function advantageTable(rows: Array<Record<string, any>>): string {
-  return table(["分類", "試合数", "実績勝率", "期待勝率", "期待超過"], advantageRows(rows), {
+  const showExpectedN = rows.some((r) => r.all_n !== undefined && r.all_n !== null);
+  const headers = showExpectedN
+    ? ["分類", "試合数", "期待対象", "実績勝率", "期待勝率", "期待超過"]
+    : ["分類", "試合数", "実績勝率", "期待勝率", "期待超過"];
+  return table(headers, advantageRows(rows), {
     leftCols: new Set([0]),
-    minWidth: 720,
+    minWidth: showExpectedN ? 820 : 720,
     showDirection: false,
     mobile: "card",
   });

@@ -75,9 +75,12 @@ function buildGlossary(bundle: AnalysisBundle): string {
     ["VS/APM", TERM_TITLES["VS/APM"]],
     ["Area", TERM_TITLES.Area],
     ["Cheese Index", TERM_TITLES["Cheese Index"]],
+    ["Opener", TERM_TITLES.Opener],
+    ["Stride", TERM_TITLES.Stride],
+    ["Inf DS", TERM_TITLES["Inf DS"]],
+    ["Plonk", TERM_TITLES.Plonk],
     ["CV", TERM_TITLES.CV],
     ["Cohen's d", TERM_TITLES["Cohen's d"]],
-    ["AUC/Brier/Log loss", "モデルの当たり具合。AUCは高いほど、BrierとLog lossは低いほど良い。"],
   ];
   const rows = items.map(([k, v]) => `<dt>${htmlEscape(k)}</dt><dd>${htmlEscape(v ?? "")}</dd>`).join("");
   return `<details class="glossary"><summary>先に用語を確認する</summary><dl>${rows}</dl></details>`;

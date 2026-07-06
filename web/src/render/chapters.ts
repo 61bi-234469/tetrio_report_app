@@ -291,7 +291,7 @@ export function renderChapters(bundle: AnalysisBundle, anon: Anonymizer): string
   );
   parts.push(chapterSection(4, c4));
 
-  // 第5章 勝敗に関係しやすい指標（A案: 相対能力差モデル表とAUC/Brier/log loss文言は除外）
+  // 第5章 勝敗に関係しやすい指標
   const effects = s.effect_sizes as Array<Record<string, any>>;
   const topEffect = effects[0];
   let c5 = chapterHeader(5, "勝敗に関係しやすい指標", "勝利時と敗北時の能力差、相手との相対優位。");
@@ -661,7 +661,7 @@ export function renderChapters(bundle: AnalysisBundle, anon: Anonymizer): string
     topReplay
       ? `最上位候補は${dateText(topReplay.date)}の${htmlEscape(anon.opponent(topReplay.opponent ?? topReplay.opponent_id, "相手不明"))}戦${topReplay.round ? `R${htmlEscape(String(topReplay.round))}` : "マッチ全体"}（${htmlEscape(String(topReplay.condition ?? ""))}）。`
       : "候補を抽出不可。",
-    ["replayExpiry"],
+    ["replayExpiry", "replayNotInspected"],
     "条件×優先度で勝利・敗北それぞれ最大5件。削除済みも参考表示。",
   );
   parts.push(chapterSection(13, c13));

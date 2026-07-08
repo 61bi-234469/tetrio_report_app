@@ -2,6 +2,7 @@ import type { AnalysisBundle } from "../analysis/types";
 import type { Anonymizer } from "../render/anonymize";
 import { quantile, rollingMean } from "../analysis/stats";
 import { ABILITY_METRIC_COLUMNS, BASE_METRICS, OPPONENT_COLUMN } from "../analysis/enrich";
+import { trBandSeries } from "../analysis/tr-band";
 import { BASE_PARAM_COLUMNS, calculateAverageParams } from "../params";
 import { finiteNumber as numberOrNull } from "../utils";
 import {
@@ -472,24 +473,12 @@ function rollingParamColumnMean(matches: AnalysisBundle["matches"], column: stri
 }
 
 function buildMonthlyTrBand(matches: AnalysisBundle["matches"]): ChartConfig {
-  const window = 50;
-  const rows = matches
-    .map((match) => ({
-      label: String(match.played_at_jst ?? "").slice(0, 10),
-      playedAt: String(match.played_at_jst ?? ""),
-      tr: numberOrNull(match.tr_after),
-    }))
-    .filter((row): row is { label: string; playedAt: string; tr: number } => row.tr !== null && row.playedAt.length > 0)
-    .sort((a, b) => a.playedAt.localeCompare(b.playedAt));
-  const labels = rows.map((row) => row.label);
-  const windows = rows.map((_, index) => rows.slice(Math.max(0, index - window + 1), index + 1).map((row) => row.tr));
-  const p10 = windows.map((values) => quantile(values, 0.1));
-  const p50 = windows.map((values) => quantile(values, 0.5));
-  const p90 = windows.map((values) => quantile(values, 0.9));
+  const band = trBandSeries(matches);
+  const { p10, p50, p90 } = band;
   return {
     type: "line",
     data: {
-      labels,
+      labels: band.labels,
       datasets: [
         { ...lineDataset("P10", p10.map(roundOrNull), EXPECTED_COLOR), pointRadius: 0, borderDash: [6, 4], borderWidth: 1.2 },
         {

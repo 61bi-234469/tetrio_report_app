@@ -1,4 +1,5 @@
 import type { AnalysisBundle } from "../analysis/types";
+import { ABILITY_METRIC_COLUMNS } from "../analysis/enrich";
 import { STYLE_ORDER } from "../analysis/model";
 import { quantile } from "../analysis/stats";
 import { htmlEscape, finiteNumber as num } from "../utils";
@@ -37,10 +38,7 @@ const PART_AT = new Map<number, [string, string, number]>(
   PARTS.map(([roman, name, start], i) => [start, [roman, name, i + 1]]),
 );
 
-const ABILITY_METRICS = [
-  "APM", "PPS", "VS", "APP", "DS/Second", "DS/Piece", "APP+DS/Piece",
-  "VS/APM", "Cheese Index", "Garbage Eff.", "Area", "Est. TR",
-];
+const ABILITY_METRICS = ABILITY_METRIC_COLUMNS.map(([label]) => label);
 const CURRENT_DERIVED_METRICS: Array<[string, string]> = [
   ["APP", "APP"],
   ["DS/Second", "DS/Second"],

@@ -1,6 +1,7 @@
 import type { AnalysisBundle } from "../analysis/types";
 import type { Anonymizer } from "../render/anonymize";
 import { quantile, rollingMean } from "../analysis/stats";
+import { ABILITY_METRIC_COLUMNS, BASE_METRICS, OPPONENT_COLUMN } from "../analysis/enrich";
 import { BASE_PARAM_COLUMNS, calculateAverageParams } from "../params";
 import { finiteNumber as numberOrNull } from "../utils";
 import {
@@ -58,31 +59,9 @@ export const CHART_IDS = [
 
 export type ChartId = (typeof CHART_IDS)[number];
 
-// 第3章・第4章で扱う能力指標（render/chapters.ts ABILITY_METRICS と同一順）。
-const ABILITY_METRIC_LABELS = [
-  "APM", "PPS", "VS", "APP", "DS/Second", "DS/Piece", "APP+DS/Piece",
-  "VS/APM", "Cheese Index", "Garbage Eff.", "Area", "Est. TR",
-];
-// マッチ行の対応カラム（enrich.ts BASE_METRICS と同一対応）。
-const ABILITY_METRIC_COLUMNS: Record<string, string> = {
-  APM: "apm",
-  PPS: "pps",
-  VS: "vs",
-  APP: "APP",
-  "DS/Second": "DS/Second",
-  "DS/Piece": "DS/Piece",
-  "APP+DS/Piece": "APP+DS/Piece",
-  "VS/APM": "VS/APM",
-  "Cheese Index": "Cheese Index",
-  "Garbage Eff.": "Garbage Effi.",
-  Area: "Area",
-  "Est. TR": "Est. TR",
-};
+const ABILITY_METRIC_LABELS = ABILITY_METRIC_COLUMNS.map(([label]) => label);
 // Python版 03_capability_radar と同じ10軸。
-const RADAR_LABELS = [
-  "APM", "PPS", "VS", "APP", "DS/Second", "DS/Piece", "APP+DS/Piece",
-  "VS/APM", "Cheese Index", "Garbage Eff.",
-];
+const RADAR_LABELS = ABILITY_METRIC_LABELS.slice(0, 10); // APM〜Garbage Eff.（Python版03と同じ10軸）
 const TREND_GROUPS: Array<[ChartId, string, string[]]> = [
   ["05_monthly_normalized_trends", "APM / PPS / VS / VS/APM", ["VS/APM", "APM", "PPS", "VS"]],
   ["05_monthly_normalized_trends_ds", "DS/Second / DS/Piece", ["DS/Second", "DS/Piece"]],
@@ -277,8 +256,8 @@ function buildTrHistory(matches: AnalysisBundle["matches"], dateLabels: string[]
 function buildMetricBalance(matches: AnalysisBundle["matches"]): ChartConfig {
   const rows = ABILITY_METRIC_LABELS
     .map((label) => {
-      const selfColumn = ABILITY_METRIC_COLUMNS[label]!;
-      const opponentColumn = opponentMetricColumn(label, selfColumn);
+      const selfColumn = BASE_METRICS[label]!;
+      const opponentColumn = OPPONENT_COLUMN[selfColumn] ?? `opponent_${selfColumn}`;
       const self = distributionStats(matches.map((match) => match[selfColumn]));
       const opponent = distributionStats(matches.map((match) => match[opponentColumn]));
       if (self === null || opponent === null) {
@@ -473,7 +452,7 @@ function buildNormalizedTrendGroup(matches: AnalysisBundle["matches"], dateLabel
 }
 
 function rollingMetricMean(matches: AnalysisBundle["matches"], label: string, window: number): Array<number | null> {
-  const column = ABILITY_METRIC_COLUMNS[label]!;
+  const column = BASE_METRICS[label]!;
   return rollingParamColumnMean(matches, column, window);
 }
 
@@ -980,12 +959,6 @@ function sessionPositionNumber(row: Record<string, unknown>): number | null {
   return match ? Number(match[0]) : null;
 }
 
-function opponentMetricColumn(label: string, selfColumn: string): string {
-  if (label === "Garbage Eff.") {
-    return "opponent_Garbage Effi.";
-  }
-  return `opponent_${selfColumn}`;
-}
 
 function distributionStats(values: unknown[]): { p10: number; p50: number; p90: number } | null {
   const finite = values

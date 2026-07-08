@@ -2046,11 +2046,8 @@ function rankOrder(rank: string): number {
   return (RANK_ORDER as readonly string[]).indexOf(rank.trim().toLowerCase());
 }
 
-function opponentColumn(col: string): string | null {
-  if (col === "vs") return "opponent_vs";
-  if (["apm", "pps"].includes(col)) return `opponent_${col}`;
-  if (col === "Est. TR") return "opponent_Est. TR";
-  return `opponent_${col}`;
+function opponentColumn(col: string): string {
+  return OPPONENT_COLUMN[col] ?? `opponent_${col}`;
 }
 
 function averageParamsOrNull(rows: DataRow[], sourcePrefix: string, outputPrefix: string): Record<string, number | null> {

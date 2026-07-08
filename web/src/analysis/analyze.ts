@@ -12,7 +12,7 @@ import {
   buildMatchRows,
   enrichRounds,
 } from "./enrich";
-import { RANK_ORDER, RECENT_MATCH_WINDOW, SCORE_STATE_ORDER, STYLE_ORDER, TABLE_SCOPE_WINDOWS } from "./model";
+import { RANK_ORDER, RECENT_MATCH_WINDOW, SCORE_STATE_ORDER, STYLE_ORDER, STYLE_PLANE_MIN_MATCHES, STYLE_QUADRANTS, TABLE_SCOPE_WINDOWS } from "./model";
 import { cohensD, mean, quantile, quantileBins, runLengths, std, wilsonInterval } from "./stats";
 import { BASE_PARAM_COLUMNS, calculateAverageParams, calculateParams } from "../params";
 import type { LeagueSummaryResult } from "../tetrio-api";
@@ -1112,18 +1112,12 @@ function buildComeback(rounds: RoundRow[], matches: MatchRow[]): Record<string, 
 function buildStyleMatchupPlane(matches: MatchRow[]): Record<string, unknown> {
   const valid = matches.filter((match) => toNumber(match["opponent_Stride - Plonk"]) !== null && toNumber(match["opponent_Opener - Inf DS"]) !== null);
   // Python版は標本30未満では空のまま（第12章の平面は出さない）。
-  if (valid.length < 30) {
+  if (valid.length < STYLE_PLANE_MIN_MATCHES) {
     return {};
   }
-  const quadrants = [
-    ["相手Opener・Stride寄り", (match: MatchRow) => Number(match["opponent_Opener - Inf DS"]) >= 0 && Number(match["opponent_Stride - Plonk"]) >= 0],
-    ["相手Opener・Plonk寄り", (match: MatchRow) => Number(match["opponent_Opener - Inf DS"]) >= 0 && Number(match["opponent_Stride - Plonk"]) < 0],
-    ["相手Inf DS・Stride寄り", (match: MatchRow) => Number(match["opponent_Opener - Inf DS"]) < 0 && Number(match["opponent_Stride - Plonk"]) >= 0],
-    ["相手Inf DS・Plonk寄り", (match: MatchRow) => Number(match["opponent_Opener - Inf DS"]) < 0 && Number(match["opponent_Stride - Plonk"]) < 0],
-  ] as const;
   return {
     n: valid.length,
-    quadrants: quadrants.map(([label, predicate]) => {
+    quadrants: STYLE_QUADRANTS.map(([label, predicate]) => {
       const group = valid.filter((match) => predicate(match) && toNumber(match.expected_win) !== null);
       return {
         label,
@@ -1752,17 +1746,11 @@ function findWeakStyleQuadrant(
   const valid = matches.filter(
     (match) => toNumber(match["opponent_Stride - Plonk"]) !== null && toNumber(match["opponent_Opener - Inf DS"]) !== null,
   );
-  if (valid.length < 30) {
+  if (valid.length < STYLE_PLANE_MIN_MATCHES) {
     return null;
   }
-  const quadrants: Array<[string, (match: MatchRow) => boolean]> = [
-    ["相手Opener・Stride寄り", (match) => Number(match["opponent_Opener - Inf DS"]) >= 0 && Number(match["opponent_Stride - Plonk"]) >= 0],
-    ["相手Opener・Plonk寄り", (match) => Number(match["opponent_Opener - Inf DS"]) >= 0 && Number(match["opponent_Stride - Plonk"]) < 0],
-    ["相手Inf DS・Stride寄り", (match) => Number(match["opponent_Opener - Inf DS"]) < 0 && Number(match["opponent_Stride - Plonk"]) >= 0],
-    ["相手Inf DS・Plonk寄り", (match) => Number(match["opponent_Opener - Inf DS"]) < 0 && Number(match["opponent_Stride - Plonk"]) < 0],
-  ];
   let worst: { label: string; winRate: number; predicate: (match: MatchRow) => boolean; excess: number } | null = null;
-  for (const [label, predicate] of quadrants) {
+  for (const [label, predicate] of STYLE_QUADRANTS) {
     const group = valid.filter((match) => predicate(match) && toNumber(match.expected_win) !== null);
     if (group.length < 10) {
       continue;

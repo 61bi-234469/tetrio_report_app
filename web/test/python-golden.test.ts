@@ -10,7 +10,7 @@ import { edgeRounds, syntheticRounds } from "./helpers/fixture-rounds";
 
 const testDir = fileURLToPath(new URL(".", import.meta.url));
 const repoRoot = resolve(testDir, "..", "..");
-const pythonExe = resolve(repoRoot, "src", "report_builder", ".venv", "Scripts", "python.exe");
+const pythonExe = resolve(repoRoot, "python", "src", "report_builder", ".venv", "Scripts", "python.exe");
 
 describe.skipIf(!existsSync(pythonExe))("python golden comparison", () => {
   it("matches selected Python summary values on anonymized synthetic rounds", () => {
@@ -336,7 +336,7 @@ function runPythonSummary(csvPath: string): any {
   const script = [
     "import json, sys",
     "from pathlib import Path",
-    `sys.path.insert(0, ${JSON.stringify(resolve(repoRoot, "src", "report_builder", "scripts"))})`,
+    `sys.path.insert(0, ${JSON.stringify(resolve(repoRoot, "python", "src", "report_builder", "scripts"))})`,
     "from report_analysis import analyze_csv",
     `bundle = analyze_csv(Path(${JSON.stringify(csvPath)}), player_name='your_username')`,
     "payload = {'summary': bundle.summary, 'monthly': json.loads(bundle.monthly.to_json(orient='records'))}",

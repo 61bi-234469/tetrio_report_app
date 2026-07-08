@@ -4,8 +4,8 @@
 - Unofficial TETR.IO Tetra League report generator ("戦績レポート for TETR.IO"). Public, MIT-licensed repository; not affiliated with TETR.IO / osk.
 - Two editions live side by side:
   - **Web edition (current)** in `web/` — a Cloudflare Workers app. All new features go here.
-  - **Python edition (legacy)** in `src/` — Windows GUI/CLI pipeline. Maintenance only; do not add features.
-- Keep the unofficial notice, trademark note, and third-party formula attribution (TetraStats) consistent across `NOTICE.md`, `README.md`, `THIRD_PARTY_NOTICES.md`, and the report footers (`src/report_builder/content/partials/footer.html` and the web renderer) when touching related text.
+  - **Python edition (legacy)** in `python/` — Windows GUI/CLI pipeline. Maintenance only; do not add features.
+- Keep the unofficial notice, trademark note, and third-party formula attribution (TetraStats) consistent across `NOTICE.md`, `README.md`, `THIRD_PARTY_NOTICES.md`, and the report footers (`python/src/report_builder/content/partials/footer.html` and the web renderer) when touching related text.
 
 ## Web Edition (`web/`)
 - Requires Node.js 22+. Run all npm commands from `web/`. In PowerShell, invoke `npm.cmd` / `npx.cmd` (the `npm.ps1` shims can fail under execution policy).
@@ -16,14 +16,14 @@
 - `web/public/report.js` is a build artifact (Git-ignored); edit the sources under `web/src/` instead.
 - Tests live in `web/test/`, including golden tests (`python-golden.test.ts`) that keep metric parity with the Python edition. Fixtures are anonymized; raw pre-anonymization inputs belong in the Git-ignored `web/test/fixtures/raw/` only.
 
-## Python Edition (`src/`, legacy)
-- Targets Windows 10/11, Python 3.10+, PowerShell 5.1+. The root `レポート作成GUI.bat` launches `src/tetrio_report_gui.pyw`.
-- Pipeline: fetch data with `src/api_export/tetrio_league_export.py`, then build the HTML report with `src/report_builder/make_report.ps1` (which owns `.venv` creation and dependency install).
-- Keep the GUI a thin orchestrator; do not duplicate analysis or rendering logic in `tetrio_report_gui.pyw`. Keep metric formulas centralized in `tetrio_league_export.py` and `src/report_builder/scripts/report_analysis.py`.
+## Python Edition (`python/`, legacy)
+- Targets Windows 10/11, Python 3.10+, PowerShell 5.1+. `python/レポート作成GUI.bat` launches `python/src/tetrio_report_gui.pyw`.
+- Pipeline: fetch data with `python/src/api_export/tetrio_league_export.py`, then build the HTML report with `python/src/report_builder/make_report.ps1` (which owns `.venv` creation and dependency install).
+- Keep the GUI a thin orchestrator; do not duplicate analysis or rendering logic in `tetrio_report_gui.pyw`. Keep metric formulas centralized in `tetrio_league_export.py` and `python/src/report_builder/scripts/report_analysis.py`.
 - Validate with the smallest relevant command (the specific script or `make_report.ps1`) rather than the full GUI flow. Use `-Open` only when the user wants the report opened.
 
 ## Data and Privacy
-- Never commit downloaded TETR.IO data, generated HTML reports, chart images, cache files, or virtual environments. `data/`, `reports/`, `gui_config.json`, `docs/`, `src/report_builder/{cache,charts,output,input,.venv}` are reproducible or local-only (see `.gitignore`).
+- Never commit downloaded TETR.IO data, generated HTML reports, chart images, cache files, or virtual environments. `python/data/`, `python/reports/`, `python/gui_config.json`, `docs/`, `python/src/report_builder/{cache,charts,output,input,.venv}` are reproducible or local-only (see `.gitignore`).
 - `docs/` holds local-only design notes and is Git-ignored; new plans and records go there, not into tracked files. Name new files `YYYY_MM_DD_<topic>.md`. After implementing a plan doc, append a dated results section (対応結果) to the same file: what was done, review findings and their resolution, and verification results — including any verification step that could not be completed and must be redone.
 - `your_username` is the placeholder player identifier in defaults, docs, and samples. Do not commit real TETR.IO handles, opponent data, or other personal identifiers into tracked source or fixtures.
 - Exception: `61bi_234469` is the repository owner's own TETR.IO handle and may appear in checked-in sample reports when the owner explicitly permits it. Keep other player/opponent identifiers anonymized unless similarly authorized.

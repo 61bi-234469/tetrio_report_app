@@ -52,6 +52,13 @@ export function toNumber(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+// Number()の素の変換に有限性チェックだけを足した変換。
+// toNumberと異なり null/"" は 0 になる（チャート・描画系の現行挙動を保持するため統一しない）。
+export function finiteNumber(value: unknown): number | null {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 export function cell(value: unknown): CellValue {
   if (value === undefined || value === null) {
     return null;

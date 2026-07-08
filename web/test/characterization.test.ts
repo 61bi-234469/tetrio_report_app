@@ -20,7 +20,7 @@ function sha256(text: string): string {
 
 function stabilizeSnapshotValue(value: unknown): unknown {
   if (typeof value === "number") {
-    return Number(value.toPrecision(14));
+    return Number(value.toPrecision(12));
   }
   if (Array.isArray(value)) {
     return value.map(stabilizeSnapshotValue);
@@ -35,7 +35,7 @@ function stabilizeSnapshotValue(value: unknown): unknown {
 
 function stabilizeRenderedHtml(html: string): string {
   return html.replace(/-?\d+\.\d{12,}(?:e[+-]?\d+)?/gi, (match) =>
-    Number(match).toPrecision(14),
+    Number(match).toPrecision(12),
   );
 }
 

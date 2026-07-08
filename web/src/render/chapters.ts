@@ -1,7 +1,7 @@
 import type { AnalysisBundle } from "../analysis/types";
 import { ABILITY_METRIC_COLUMNS } from "../analysis/enrich";
 import { STYLE_ORDER } from "../analysis/model";
-import { quantile } from "../analysis/stats";
+import { TR_BAND_WINDOW, trBandSeries } from "../analysis/tr-band";
 import { htmlEscape, finiteNumber as num } from "../utils";
 import type { Anonymizer } from "./anonymize";
 import { advantageTable, block, fig, grain, table } from "./components";
@@ -139,22 +139,17 @@ function currentLeagueTable(currentLeague: Record<string, any>): string {
 
 // 直近50マッチ窓のマッチ後TR分位帯（P10/P50/P90）を bundle.matches から算出する。
 function trMonthlyBandResult(matches: AnalysisBundle["matches"]): string {
-  const window = 50;
-  const rows = matches
-    .map((match) => ({ playedAt: String(match.played_at_jst ?? ""), tr: num(match.tr_after) }))
-    .filter((row): row is { playedAt: string; tr: number } => row.tr !== null && row.playedAt.length > 0)
-    .sort((a, b) => a.playedAt.localeCompare(b.playedAt));
-  if (rows.length === 0) {
+  const band = trBandSeries(matches);
+  if (band.count === 0) {
     return "マッチ単位TR分位帯を集計不可。";
   }
-  const latest = rows.slice(-window).map((row) => row.tr);
-  const p10 = quantile(latest, 0.1);
-  const p50 = quantile(latest, 0.5);
-  const p90 = quantile(latest, 0.9);
+  const p10 = band.p10.at(-1) ?? null;
+  const p50 = band.p50.at(-1) ?? null;
+  const p90 = band.p90.at(-1) ?? null;
   if (p10 === null || p50 === null || p90 === null) {
     return "マッチ単位TR分位帯を集計不可。";
   }
-  return `直近${Math.min(window, rows.length)}マッチ窓のP50は${nfmt(p50, 0, true)}、P10-P90幅は${nfmt(p90 - p10, 0, true)}。`;
+  return `直近${Math.min(TR_BAND_WINDOW, band.count)}マッチ窓のP50は${nfmt(p50, 0, true)}、P10-P90幅は${nfmt(p90 - p10, 0, true)}。`;
 }
 
 export function renderChapters(bundle: AnalysisBundle, anon: Anonymizer): string {

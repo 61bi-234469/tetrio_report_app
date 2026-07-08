@@ -1,7 +1,7 @@
 import type { DataRow, MatchRow, RoundRow } from "./types";
 import { STYLE_ORDER } from "./model";
 import { mean } from "./stats";
-import { jstParts, toNumber } from "../utils";
+import { groupBy, jstParts, toNumber } from "../utils";
 import { BASE_PARAM_COLUMNS, calculateParams } from "../params";
 
 export const EST_TR_COLUMN = "Est. TR";
@@ -481,16 +481,3 @@ function strongestStyle(row: DataRow, prefix: string): string {
   return best;
 }
 
-function groupBy<T, K>(items: T[], keyFn: (item: T) => K): Map<K, T[]> {
-  const groups = new Map<K, T[]>();
-  for (const item of items) {
-    const key = keyFn(item);
-    const group = groups.get(key);
-    if (group) {
-      group.push(item);
-    } else {
-      groups.set(key, [item]);
-    }
-  }
-  return groups;
-}

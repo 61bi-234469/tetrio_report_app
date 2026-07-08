@@ -18,7 +18,7 @@ import { BASE_PARAM_COLUMNS, calculateAverageParams, calculateParams } from "../
 import type { LeagueSummaryResult } from "../tetrio-api";
 
 const EMPTY_RESULTS = new Set(["nan", "none", ""]);
-import { toNumber } from "../utils";
+import { groupBy, toNumber } from "../utils";
 
 export interface AnalyzeOptions {
   username: string;
@@ -2154,13 +2154,3 @@ function robustZFactory(values: unknown[]): (value: unknown) => number | null {
   };
 }
 
-function groupBy<T, K>(items: T[], keyFn: (item: T) => K): Map<K, T[]> {
-  const groups = new Map<K, T[]>();
-  for (const item of items) {
-    const key = keyFn(item);
-    const group = groups.get(key);
-    if (group) group.push(item);
-    else groups.set(key, [item]);
-  }
-  return groups;
-}

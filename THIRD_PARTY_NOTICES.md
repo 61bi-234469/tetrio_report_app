@@ -16,6 +16,6 @@ Each dependency remains under its own license.
 | scikit-learn | Scaling and analysis helpers | BSD-3-Clause License |
 
 These notices summarize the direct Python dependencies listed in
-`src/report_builder/requirements.txt` and the direct web dependency bundled
+`python/src/report_builder/requirements.txt` and the direct web dependency bundled
 into generated reports from `web/package.json`. Transitive dependencies retain
 their respective upstream licenses.

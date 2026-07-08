@@ -6,7 +6,7 @@ TETR.IO戦績分析HTMLレポートを、最新の `matches_with_params.parquet`
 ## Setup
 
 ```powershell
-cd .\src\report_builder
+cd .\python\src\report_builder
 .\make_report.ps1
 ```
 

@@ -1,7 +1,7 @@
 import type { AnalysisBundle } from "../analysis/types";
 import { STYLE_ORDER } from "../analysis/model";
 import { quantile } from "../analysis/stats";
-import { htmlEscape } from "../utils";
+import { htmlEscape, finiteNumber as num } from "../utils";
 import type { Anonymizer } from "./anonymize";
 import { advantageTable, block, fig, grain, table } from "./components";
 import { metricFmt, nfmt, pct, pp, sgn } from "./format";
@@ -72,11 +72,6 @@ function chapterHeader(num: number, title: string, lead: string): string {
     partDivider(num) +
     `<h2 class="chap" id="c${num}"><span class="no">第${num}章</span>${htmlEscape(title)}<a class="toclink" href="#top">↑ 目次</a></h2>\n<p class="lead">${lead}</p>`
   );
-}
-
-function num(value: unknown): number | null {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function maxBy<T>(rows: T[], key: (row: T) => number): T | undefined {

@@ -2,6 +2,7 @@ import type { AnalysisBundle } from "../analysis/types";
 import type { Anonymizer } from "../render/anonymize";
 import { quantile, rollingMean } from "../analysis/stats";
 import { BASE_PARAM_COLUMNS, calculateAverageParams } from "../params";
+import { finiteNumber as numberOrNull } from "../utils";
 import {
   EXPECTED_COLOR,
   LOSS_COLOR,
@@ -1014,11 +1015,6 @@ function maxFinite(values: Array<number | null>): number {
 function maxAbsFinite(values: Array<number | null>): number {
   const finite = values.filter((value): value is number => value !== null && Number.isFinite(value));
   return finite.length ? Math.max(...finite.map((value) => Math.abs(value))) : 0;
-}
-
-function numberOrNull(value: unknown): number | null {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function isDerivedMetricColumn(column: string): boolean {

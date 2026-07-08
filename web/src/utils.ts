@@ -165,6 +165,17 @@ export function normalizeCacheEpoch(value: unknown): number | null {
   return epoch > 10_000_000_000 ? Math.trunc(epoch / 1000) : epoch;
 }
 
+export function groupBy<T, K>(items: T[], keyFn: (item: T) => K): Map<K, T[]> {
+  const groups = new Map<K, T[]>();
+  for (const item of items) {
+    const key = keyFn(item);
+    const group = groups.get(key);
+    if (group) group.push(item);
+    else groups.set(key, [item]);
+  }
+  return groups;
+}
+
 function pad2(value: number): string {
   return String(value).padStart(2, "0");
 }

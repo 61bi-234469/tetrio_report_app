@@ -173,7 +173,7 @@ function Resolve-DataFile {
 
 次のどちらかを行ってください。
 1. input フォルダーへCSV/Parquetを置いて .\make_report.ps1 を実行
-2. .\src\report_builder\make_report.ps1 -DataFile "data\rounds.parquet" -MatchesFile "data\matches.parquet" を実行
+2. .\python\src\report_builder\make_report.ps1 -DataFile "data\rounds.parquet" -MatchesFile "data\matches.parquet" を実行
 
 対象フォルダー:
 $InputDir

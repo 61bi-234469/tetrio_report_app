@@ -10,7 +10,7 @@ tetr.io の Tetra League 戦績を TETRA CHANNEL API から取得し、12章構�
 | 版 | 場所 | 状態 |
 |---|---|---|
 | **Web版（現行）** | `web/` | 開発中。今後の機能追加はこちらに行います |
-| **Python版（旧版）** | `src/` ほか | 旧版。更新停止予定（保守のみ） |
+| **Python版（旧版）** | `python/` | 旧版。更新停止予定（保守のみ） |
 
 本ツールは非公式です。TETR.IO / osk とは関係ありません。"TETR.IO" は権利者の商標です。
 
@@ -78,8 +78,8 @@ Python版では、ツールが作る**①戦績レポート（本体）**に加�
 
 | レポート種別 | リンク |
 |---|---|
-| 旧Python版 ① 戦績レポート（本体） | [サンプルを見る](https://htmlpreview.github.io/?https://github.com/61bi-234469/tetrio_report_app/blob/develop/samples/sample_report.html) |
-| 旧Python版 ② AI考察レポート（別紙・Python版のみ） | [サンプルを見る](https://htmlpreview.github.io/?https://github.com/61bi-234469/tetrio_report_app/blob/develop/samples/sample_ai_report.html) |
+| 旧Python版 ① 戦績レポート（本体） | [サンプルを見る](https://htmlpreview.github.io/?https://github.com/61bi-234469/tetrio_report_app/blob/develop/python/samples/sample_report.html) |
+| 旧Python版 ② AI考察レポート（別紙・Python版のみ） | [サンプルを見る](https://htmlpreview.github.io/?https://github.com/61bi-234469/tetrio_report_app/blob/develop/python/samples/sample_ai_report.html) |
 
 | | ① 戦績レポート（本体） | ② AI考察レポート（別紙） |
 |---|---|---|
@@ -103,7 +103,7 @@ Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 
 ### GUIで使う
 
-1. `レポート作成GUI.bat` をダブルクリックします。
+1. `python\レポート作成GUI.bat` をダブルクリックします。
 2. プレイヤーIDと取得試合数を入力します。
 3. 必要な実行内容をチェックし、`実行` をクリックします。
 
@@ -116,39 +116,39 @@ Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 先にレポートビルダー用の仮想環境を準備します。
 
 ```powershell
-py -3 -m venv "src\report_builder\.venv"
-& "src\report_builder\.venv\Scripts\python.exe" -m pip install -r "src\report_builder\requirements.txt"
+py -3 -m venv "python\src\report_builder\.venv"
+& "python\src\report_builder\.venv\Scripts\python.exe" -m pip install -r "python\src\report_builder\requirements.txt"
 ```
 
 APIから直近100試合を取得します（GUIと同じ `data\raw|csv|parquet` 構成にする場合は `--output-layout typed` を付けます）。
 
 ```powershell
-& "src\report_builder\.venv\Scripts\python.exe" `
-  "src\api_export\tetrio_league_export.py" `
+& "python\src\report_builder\.venv\Scripts\python.exe" `
+  "python\src\api_export\tetrio_league_export.py" `
   --source api --username your_username --max-matches 100 `
-  --outputs all --output-dir "data" --output-layout typed
+  --outputs all --output-dir "python\data" --output-layout typed
 ```
 
 取得済みデータから①戦績レポート（本体・HTML）を生成します。
 
 ```powershell
-& "src\report_builder\make_report.ps1" `
-  -DataFile "data\parquet\your_username_tetra_league_rounds_with_params.parquet" `
-  -MatchesFile "data\parquet\your_username_tetra_league_matches_with_params.parquet" `
+& "python\src\report_builder\make_report.ps1" `
+  -DataFile "python\data\parquet\your_username_tetra_league_rounds_with_params.parquet" `
+  -MatchesFile "python\data\parquet\your_username_tetra_league_matches_with_params.parquet" `
   -Player "your_username" -Open
 ```
 
 ②AI考察レポート関連の主なスイッチ:
 
-- `-PrepareAI`: AIチャット貼り付け用の素材（AI用JSON `ai_appendix_data.json`・プロンプト `prompt_chat.md`）を `src/report_builder/cache/ai` に書き出します。
+- `-PrepareAI`: AIチャット貼り付け用の素材（AI用JSON `ai_appendix_data.json`・プロンプト `prompt_chat.md`）を `python/src/report_builder/cache/ai` に書き出します。
 - `-GenerateAIReport`: 連携AIエージェントCLIで②を自動作成します。`-AIAgent codex|claude` でCLIを、`-AIReasoningLevel standard|high|low` で推論レベルを選びます。CLI実行が失敗しても①本体HTMLは保持され、`cache/ai` の素材でAIチャット貼り付け手順へ切り替えられます。
 
 ### 出力
 
-- GUIのAPI取得データ: `data\raw`, `data\parquet`, `data\csv`
-- GUIの成果物: `reports\<player>_report_<yyyy_mm_dd_HHmm>.html`、`reports\<player>_ai_report_<yyyy_mm_dd_HHmm>.html`
-- コマンドの成果物: `src/report_builder/output`（①・②HTML）、`src/report_builder/cache/ai`（AI用JSON・プロンプト）
-- 実行情報: `src\report_builder\cache\latest_run_manifest.json`
+- GUIのAPI取得データ: `python\data\raw`, `python\data\parquet`, `python\data\csv`
+- GUIの成果物: `python\reports\<player>_report_<yyyy_mm_dd_HHmm>.html`、`python\reports\<player>_ai_report_<yyyy_mm_dd_HHmm>.html`
+- コマンドの成果物: `python/src/report_builder/output`（①・②HTML）、`python/src/report_builder/cache/ai`（AI用JSON・プロンプト）
+- 実行情報: `python\src\report_builder\cache\latest_run_manifest.json`
 
 ---
 

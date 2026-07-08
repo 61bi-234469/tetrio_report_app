@@ -52,21 +52,11 @@ export function toNumber(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-export function toBoolean(value: unknown): boolean | null {
-  if (typeof value === "boolean") {
-    return value;
-  }
-  if (value === null || value === undefined || value === "") {
-    return null;
-  }
-  const text = String(value).trim().toLowerCase();
-  if (["true", "1", "yes", "win", "victory"].includes(text)) {
-    return true;
-  }
-  if (["false", "0", "no", "loss", "defeat"].includes(text)) {
-    return false;
-  }
-  return null;
+// Number()の素の変換に有限性チェックだけを足した変換。
+// toNumberと異なり null/"" は 0 になる（チャート・描画系の現行挙動を保持するため統一しない）。
+export function finiteNumber(value: unknown): number | null {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 export function cell(value: unknown): CellValue {
@@ -175,15 +165,15 @@ export function normalizeCacheEpoch(value: unknown): number | null {
   return epoch > 10_000_000_000 ? Math.trunc(epoch / 1000) : epoch;
 }
 
-export function finiteOrNull(value: number): number | null {
-  return Number.isFinite(value) ? value : null;
-}
-
-export function compactNumber(value: number | null | undefined, digits = 6): number | null {
-  if (value === null || value === undefined || !Number.isFinite(value)) {
-    return null;
+export function groupBy<T, K>(items: T[], keyFn: (item: T) => K): Map<K, T[]> {
+  const groups = new Map<K, T[]>();
+  for (const item of items) {
+    const key = keyFn(item);
+    const group = groups.get(key);
+    if (group) group.push(item);
+    else groups.set(key, [item]);
   }
-  return Number(value.toFixed(digits));
+  return groups;
 }
 
 function pad2(value: number): string {

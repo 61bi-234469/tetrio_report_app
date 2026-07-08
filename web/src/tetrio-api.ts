@@ -1,6 +1,7 @@
 import type { DataRow, MatchRow, RoundRow } from "./analysis/types";
 import {
   cell,
+  finiteNumber as numberOrNull,
   firstNested,
   isoToJst,
   jsonCell,
@@ -582,14 +583,6 @@ function sleep(ms: number): Promise<void> {
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
-}
-
-function numberOrNull(value: unknown): number | null {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return value;
-  }
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function maxCountKey(map: Map<string, number>): string | null {

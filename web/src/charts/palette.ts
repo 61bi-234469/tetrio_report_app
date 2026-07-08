@@ -30,17 +30,6 @@ export const STYLE_COLORS: Record<string, string> = {
   Plonk: "#16a34a",
 };
 
-export const SERIES_COLORS = [
-  "#2563eb",
-  "#0f766e",
-  "#ca8a04",
-  "#dc2626",
-  "#7c3aed",
-  "#0891b2",
-  "#4f46e5",
-  "#be123c",
-];
-
 export function alphaColor(hex: string, opacity: number): string {
   const rgb = hex.match(/^rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)$/);
   if (rgb) {

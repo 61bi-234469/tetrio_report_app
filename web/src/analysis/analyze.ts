@@ -166,7 +166,7 @@ export function analyzeReport(roundRows: RoundRow[], options: AnalyzeOptions): A
       n_matches: recentMatches.length,
       n_rounds: recentRounds.length,
     },
-    growth_window_n: Math.min(300, Math.max(Math.floor(completed.length / 3), 1)),
+    growth_window_n: growthWindowN(completed.length),
     growth: buildGrowth(completed),
     growth_windows: buildGrowthWindows(completed),
     stability: buildStability(completed),
@@ -315,11 +315,16 @@ function recentWindows(matches: MatchRow[]): Array<Record<string, unknown>> {
   });
 }
 
+// 成長比較の窓幅: 全体の1/3（最小1、最大300マッチ）。growth / stability / growth_window_n で共通。
+function growthWindowN(matchCount: number): number {
+  return Math.min(300, Math.max(Math.floor(matchCount / 3), 1));
+}
+
 function buildGrowth(matches: MatchRow[]): Record<string, unknown> {
   if (!matches.length) {
     return {};
   }
-  const windowN = Math.min(300, Math.max(Math.floor(matches.length / 3), 1));
+  const windowN = growthWindowN(matches.length);
   const early = matches.slice(0, windowN);
   const recent = matches.slice(-windowN);
   const earlyDerived = averageParamsOrNull(early, "", "");
@@ -359,7 +364,7 @@ function buildStability(matches: MatchRow[]): Record<string, unknown> {
   if (!matches.length) {
     return {};
   }
-  const windowN = Math.min(300, Math.max(Math.floor(matches.length / 3), 1));
+  const windowN = growthWindowN(matches.length);
   const early = matches.slice(0, windowN);
   const recent = matches.slice(-windowN);
   const out: Record<string, unknown> = {};

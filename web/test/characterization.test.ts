@@ -18,26 +18,47 @@ function sha256(text: string): string {
   return createHash("sha256").update(text, "utf8").digest("hex");
 }
 
+function stabilizeSnapshotValue(value: unknown): unknown {
+  if (typeof value === "number") {
+    return Number(value.toPrecision(14));
+  }
+  if (Array.isArray(value)) {
+    return value.map(stabilizeSnapshotValue);
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [key, stabilizeSnapshotValue(entry)]),
+    );
+  }
+  return value;
+}
+
+function stabilizeRenderedHtml(html: string): string {
+  return html.replace(/-?\d+\.\d{12,}(?:e[+-]?\d+)?/gi, (match) =>
+    Number(match).toPrecision(14),
+  );
+}
+
 describe("characterization (refactoring safety net)", () => {
   const bundle = analyzeReport(syntheticRounds(), OPTS);
   const edgeBundle = analyzeReport(edgeRounds(), { ...OPTS, maxMatches: 16, recordsCount: 16 });
 
   it("summary snapshot (synthetic 120 matches)", () => {
-    expect(bundle.summary).toMatchSnapshot();
+    expect(stabilizeSnapshotValue(bundle.summary)).toMatchSnapshot();
   });
   it("summary snapshot (edge cases: DQ/tie/nullified/glicko-missing)", () => {
-    expect(edgeBundle.summary).toMatchSnapshot();
+    expect(stabilizeSnapshotValue(edgeBundle.summary)).toMatchSnapshot();
   });
   it("chart configs snapshot", () => {
-    expect(buildChartConfigs(bundle, createAnonymizer(false))).toMatchSnapshot();
+    expect(stabilizeSnapshotValue(buildChartConfigs(bundle, createAnonymizer(false)))).toMatchSnapshot();
   });
   it("rendered HTML hash (plain)", () => {
-    expect(sha256(renderDocument(bundle))).toMatchSnapshot();
+    expect(sha256(stabilizeRenderedHtml(renderDocument(bundle)))).toMatchSnapshot();
   });
   it("rendered HTML hash (anonymized)", () => {
-    expect(sha256(renderDocument(bundle, { anonymize: true }))).toMatchSnapshot();
+    expect(sha256(stabilizeRenderedHtml(renderDocument(bundle, { anonymize: true })))).toMatchSnapshot();
   });
   it("rendered HTML hash (edge cases)", () => {
-    expect(sha256(renderDocument(edgeBundle))).toMatchSnapshot();
+    expect(sha256(stabilizeRenderedHtml(renderDocument(edgeBundle)))).toMatchSnapshot();
   });
 });

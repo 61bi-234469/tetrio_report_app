@@ -52,23 +52,6 @@ export function toNumber(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-export function toBoolean(value: unknown): boolean | null {
-  if (typeof value === "boolean") {
-    return value;
-  }
-  if (value === null || value === undefined || value === "") {
-    return null;
-  }
-  const text = String(value).trim().toLowerCase();
-  if (["true", "1", "yes", "win", "victory"].includes(text)) {
-    return true;
-  }
-  if (["false", "0", "no", "loss", "defeat"].includes(text)) {
-    return false;
-  }
-  return null;
-}
-
 export function cell(value: unknown): CellValue {
   if (value === undefined || value === null) {
     return null;
@@ -173,17 +156,6 @@ export function normalizeCacheEpoch(value: unknown): number | null {
   }
   const epoch = Math.trunc(parsed);
   return epoch > 10_000_000_000 ? Math.trunc(epoch / 1000) : epoch;
-}
-
-export function finiteOrNull(value: number): number | null {
-  return Number.isFinite(value) ? value : null;
-}
-
-export function compactNumber(value: number | null | undefined, digits = 6): number | null {
-  if (value === null || value === undefined || !Number.isFinite(value)) {
-    return null;
-  }
-  return Number(value.toFixed(digits));
 }
 
 function pad2(value: number): string {

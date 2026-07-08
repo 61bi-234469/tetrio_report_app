@@ -2154,11 +2154,6 @@ function robustZFactory(values: unknown[]): (value: unknown) => number | null {
   };
 }
 
-function signedNumber(value: number, digits: number): string {
-  const sign = value >= 0 ? "+" : "";
-  return `${sign}${value.toFixed(digits)}`;
-}
-
 function groupBy<T, K>(items: T[], keyFn: (item: T) => K): Map<K, T[]> {
   const groups = new Map<K, T[]>();
   for (const item of items) {

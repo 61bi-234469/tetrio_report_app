@@ -192,12 +192,7 @@ export function analyzeReport(roundRows: RoundRow[], options: AnalyzeOptions): A
       session_loss_runs: sessionStreak.losses,
       win_runs: sessionStreak.wins,
       loss_runs: sessionStreak.losses,
-      after_win_rate: groupWinRate(completed.filter((match) => match.previous_won === true)),
-      after_win_n: completed.filter((match) => match.previous_won === true).length,
-      after_loss_rate: groupWinRate(completed.filter((match) => match.previous_won === false)),
-      after_loss_n: completed.filter((match) => match.previous_won === false).length,
-      after_3_losses_rate: groupWinRate(completed.filter((match) => Number(match.streak_before) <= -3)),
-      after_3_losses_n: completed.filter((match) => Number(match.streak_before) <= -3).length,
+      ...afterResultStats(completed),
     },
     streak_states: buildStreakStates(completed, baseMeans),
     psychology: buildPsychology(completed, eligibleRounds),
@@ -944,14 +939,24 @@ function buildPsychology(matches: MatchRow[], rounds: RoundRow[]): Record<string
     }
   }
   return {
-    after_win_rate: groupWinRate(matches.filter((match) => match.previous_won === true)),
-    after_win_n: matches.filter((match) => match.previous_won === true).length,
-    after_loss_rate: groupWinRate(matches.filter((match) => match.previous_won === false)),
-    after_loss_n: matches.filter((match) => match.previous_won === false).length,
-    after_3_losses_rate: groupWinRate(matches.filter((match) => Number(match.streak_before) <= -3)),
-    after_3_losses_n: matches.filter((match) => Number(match.streak_before) <= -3).length,
+    ...afterResultStats(matches),
     comeback_0_2: comeback02,
     comeback_two_points: comebackTwo,
+  };
+}
+
+// 直前マッチ結果別の次マッチ成績。streaks と psychology の両方に同じ値を載せる。
+function afterResultStats(matches: MatchRow[]): Record<string, number | null> {
+  const afterWin = matches.filter((match) => match.previous_won === true);
+  const afterLoss = matches.filter((match) => match.previous_won === false);
+  const after3Losses = matches.filter((match) => Number(match.streak_before) <= -3);
+  return {
+    after_win_rate: groupWinRate(afterWin),
+    after_win_n: afterWin.length,
+    after_loss_rate: groupWinRate(afterLoss),
+    after_loss_n: afterLoss.length,
+    after_3_losses_rate: groupWinRate(after3Losses),
+    after_3_losses_n: after3Losses.length,
   };
 }
 

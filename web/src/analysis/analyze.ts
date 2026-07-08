@@ -292,14 +292,21 @@ function metricMeansFor(matches: MatchRow[]): Record<string, Record<string, numb
   return out;
 }
 
+// 表スコープの窓列挙。TABLE_SCOPE_WINDOWSのうち全体未満のもの＋全期間（重複・0を除去）。
+function tableWindowSizes(matchCount: number): Array<{ n: number; label: string }> {
+  const sizes: number[] = TABLE_SCOPE_WINDOWS.filter((n) => n < matchCount);
+  sizes.push(matchCount);
+  return sizes
+    .filter((n, index, list) => n > 0 && list.indexOf(n) === index)
+    .map((n) => ({ n, label: n === matchCount ? "全期間" : `直近${n}マッチ` }));
+}
+
 function recentWindows(matches: MatchRow[]): Array<Record<string, unknown>> {
-  const sizes: number[] = TABLE_SCOPE_WINDOWS.filter((n) => n < matches.length);
-  sizes.push(matches.length);
-  return sizes.filter((n, index, list) => n > 0 && list.indexOf(n) === index).map((n) => {
+  return tableWindowSizes(matches.length).map(({ n, label }) => {
     const group = matches.slice(-n);
     const expected = group.filter((match) => toNumber(match.expected_win) !== null);
     return {
-      label: n === matches.length ? "全期間" : `直近${n}マッチ`,
+      label,
       n,
       wins: group.filter((match) => match.won).length,
       actual: groupWinRate(group),
@@ -344,13 +351,11 @@ function buildGrowth(matches: MatchRow[]): Record<string, unknown> {
 }
 
 function buildGrowthWindows(matches: MatchRow[]): Array<Record<string, unknown>> {
-  const sizes: number[] = TABLE_SCOPE_WINDOWS.filter((n) => n < matches.length);
-  sizes.push(matches.length);
-  return sizes.filter((n, index, list) => n > 0 && list.indexOf(n) === index).map((n) => {
+  return tableWindowSizes(matches.length).map(({ n, label }) => {
     const group = matches.slice(-n);
     const derived = averageParamsOrNull(group, "", "");
     const row: Record<string, unknown> = {
-      label: n === matches.length ? "全期間" : `直近${n}マッチ`,
+      label,
       n,
     };
     for (const [label, col] of ABILITY_METRIC_COLUMNS) {

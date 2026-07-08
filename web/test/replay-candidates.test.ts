@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildReplayCandidates } from "../src/analysis/analyze";
+import { buildReplayCandidates } from "../src/analysis/replay";
 import type { MatchRow, RoundRow } from "../src/analysis/types";
 
 // フィックスチャはすべて合成データ。実在ハンドルは使わない（player_a/opponent_x等のプレースホルダのみ）。

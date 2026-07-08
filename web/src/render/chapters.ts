@@ -1,7 +1,8 @@
 import type { AnalysisBundle } from "../analysis/types";
+import { ABILITY_METRIC_COLUMNS } from "../analysis/enrich";
 import { STYLE_ORDER } from "../analysis/model";
-import { quantile } from "../analysis/stats";
-import { htmlEscape } from "../utils";
+import { TR_BAND_WINDOW, trBandSeries } from "../analysis/tr-band";
+import { htmlEscape, finiteNumber as num } from "../utils";
 import type { Anonymizer } from "./anonymize";
 import { advantageTable, block, fig, grain, table } from "./components";
 import { metricFmt, nfmt, pct, pp, sgn } from "./format";
@@ -37,10 +38,7 @@ const PART_AT = new Map<number, [string, string, number]>(
   PARTS.map(([roman, name, start], i) => [start, [roman, name, i + 1]]),
 );
 
-const ABILITY_METRICS = [
-  "APM", "PPS", "VS", "APP", "DS/Second", "DS/Piece", "APP+DS/Piece",
-  "VS/APM", "Cheese Index", "Garbage Eff.", "Area", "Est. TR",
-];
+const ABILITY_METRICS = ABILITY_METRIC_COLUMNS.map(([label]) => label);
 const CURRENT_DERIVED_METRICS: Array<[string, string]> = [
   ["APP", "APP"],
   ["DS/Second", "DS/Second"],
@@ -72,11 +70,6 @@ function chapterHeader(num: number, title: string, lead: string): string {
     partDivider(num) +
     `<h2 class="chap" id="c${num}"><span class="no">第${num}章</span>${htmlEscape(title)}<a class="toclink" href="#top">↑ 目次</a></h2>\n<p class="lead">${lead}</p>`
   );
-}
-
-function num(value: unknown): number | null {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function maxBy<T>(rows: T[], key: (row: T) => number): T | undefined {
@@ -146,32 +139,46 @@ function currentLeagueTable(currentLeague: Record<string, any>): string {
 
 // 直近50マッチ窓のマッチ後TR分位帯（P10/P50/P90）を bundle.matches から算出する。
 function trMonthlyBandResult(matches: AnalysisBundle["matches"]): string {
-  const window = 50;
-  const rows = matches
-    .map((match) => ({ playedAt: String(match.played_at_jst ?? ""), tr: num(match.tr_after) }))
-    .filter((row): row is { playedAt: string; tr: number } => row.tr !== null && row.playedAt.length > 0)
-    .sort((a, b) => a.playedAt.localeCompare(b.playedAt));
-  if (rows.length === 0) {
+  const band = trBandSeries(matches);
+  if (band.count === 0) {
     return "マッチ単位TR分位帯を集計不可。";
   }
-  const latest = rows.slice(-window).map((row) => row.tr);
-  const p10 = quantile(latest, 0.1);
-  const p50 = quantile(latest, 0.5);
-  const p90 = quantile(latest, 0.9);
+  const p10 = band.p10.at(-1) ?? null;
+  const p50 = band.p50.at(-1) ?? null;
+  const p90 = band.p90.at(-1) ?? null;
   if (p10 === null || p50 === null || p90 === null) {
     return "マッチ単位TR分位帯を集計不可。";
   }
-  return `直近${Math.min(window, rows.length)}マッチ窓のP50は${nfmt(p50, 0, true)}、P10-P90幅は${nfmt(p90 - p10, 0, true)}。`;
+  return `直近${Math.min(TR_BAND_WINDOW, band.count)}マッチ窓のP50は${nfmt(p50, 0, true)}、P10-P90幅は${nfmt(p90 - p10, 0, true)}。`;
+}
+
+interface ChapterContext {
+  bundle: AnalysisBundle;
+  s: any;               // bundle.summary（既存コードの `as any` を維持）
+  kpi: any;
+  recentTag: string;
+  anon: Anonymizer;
 }
 
 export function renderChapters(bundle: AnalysisBundle, anon: Anonymizer): string {
   const s = bundle.summary as any;
-  const kpi = s.kpis;
-  const scope = s.recent_scope ?? {};
-  const recentTag = `直近${scope.n_matches ?? 100}マッチ（マッチ単位）`;
-  const parts: string[] = [];
+  const ctx: ChapterContext = {
+    bundle,
+    s,
+    kpi: s.kpis,
+    recentTag: `直近${(s.recent_scope ?? {}).n_matches ?? 100}マッチ（マッチ単位）`,
+    anon,
+  };
+  return [
+    chapter1(ctx), chapter3(ctx), chapter4(ctx), chapter5(ctx), chapter6(ctx),
+    chapter7(ctx), chapter8(ctx), chapter9(ctx), chapter10(ctx), chapter11(ctx),
+    chapter12(ctx), chapter13(ctx),
+  ].join("");
+}
 
-  // 第1章 全体像と基本指標
+// 第1章 全体像と基本指標
+function chapter1(ctx: ChapterContext): string {
+  const { s, kpi } = ctx;
   const windows = s.recent_windows as Array<Record<string, any>>;
   const windowRows = windows.map((w) => [
     w.label,
@@ -209,9 +216,12 @@ export function renderChapters(bundle: AnalysisBundle, anon: Anonymizer): string
     ["glickoMissing"],
     "実績−期待＝期待超過。期待は対戦前Glicko/RDの標準Glicko期待スコア。",
   );
-  parts.push(chapterSection(1, c1));
+  return chapterSection(1, c1);
+}
 
-  // 第3章 成長推移と安定性
+// 第3章 成長推移と安定性
+function chapter3(ctx: ChapterContext): string {
+  const { s, kpi, bundle } = ctx;
   const growth = s.growth as Record<string, any>;
   const growthWindows = (s.growth_windows ?? []) as Array<Record<string, any>>;
   const growthRows = ABILITY_METRICS.map((m) => [m, ...growthWindows.map((w) => metricFmt(m, w[m]))]);
@@ -249,9 +259,12 @@ export function renderChapters(bundle: AnalysisBundle, anon: Anonymizer): string
     ["cohortBias"],
     "0=その時点の最高TR、負値=ピークからの下落幅。",
   );
-  parts.push(chapterSection(3, c3));
+  return chapterSection(3, c3);
+}
 
-  // 第4章 能力バランス
+// 第4章 能力バランス
+function chapter4(ctx: ChapterContext): string {
+  const { s, recentTag } = ctx;
   const metrics = s.metrics as Record<string, any>;
   const mr = s.metrics_recent as Record<string, any>;
   const metricRows = ABILITY_METRICS.filter((m) => m in mr).map((m) => [
@@ -289,9 +302,12 @@ export function renderChapters(bundle: AnalysisBundle, anon: Anonymizer): string
     ["summaryRecentSplit"],
     "summary API 由来の現在値とは対象範囲・取得タイミングが異なる。",
   );
-  parts.push(chapterSection(4, c4));
+  return chapterSection(4, c4);
+}
 
-  // 第5章 勝敗に関係しやすい指標
+// 第5章 勝敗に関係しやすい指標
+function chapter5(ctx: ChapterContext): string {
+  const { s } = ctx;
   const effects = s.effect_sizes as Array<Record<string, any>>;
   const topEffect = effects[0];
   let c5 = chapterHeader(5, "勝敗に関係しやすい指標", "勝利時と敗北時の能力差、相手との相対優位。");
@@ -336,9 +352,12 @@ export function renderChapters(bundle: AnalysisBundle, anon: Anonymizer): string
     ["cohortBias", "glickoMissing"],
     "散布図=相対PPS差×相対VS差の勝敗。4分類の実績/期待/期待超過。期待対象はGlicko/RD欠損を除く。",
   );
-  parts.push(chapterSection(5, c5));
+  return chapterSection(5, c5);
+}
 
-  // 第6章 プレイスタイル相性
+// 第6章 プレイスタイル相性
+function chapter6(ctx: ChapterContext): string {
+  const { s } = ctx;
   const plane = (s.style_matchup_plane ?? {}) as Record<string, any>;
   const quadrants = (plane.quadrants ?? []) as Array<Record<string, any>>;
   const sp = (plane.self_pos ?? {}) as Record<string, any>;
@@ -362,9 +381,12 @@ export function renderChapters(bundle: AnalysisBundle, anon: Anonymizer): string
     ["derivedMetric", "smallSample", "glickoMissing"],
     "点=4スタイル値を2軸要約した相手位置。表=4分類の勝率と期待超過。期待対象はGlicko/RD欠損を除く。",
   );
-  parts.push(chapterSection(6, c6));
+  return chapterSection(6, c6);
+}
 
-  // 第7章 対戦相手の強さと期待値
+// 第7章 対戦相手の強さと期待値
+function chapter7(ctx: ChapterContext): string {
+  const { s } = ctx;
   const trGap = s.tr_gap as Array<Record<string, any>>;
   const reliableGap = trGap.filter((x) => x.n >= 20);
   const bestGap = reliableGap.length ? maxBy(reliableGap, (x) => num(x.excess) ?? -Infinity)! : null;
@@ -378,9 +400,12 @@ export function renderChapters(bundle: AnalysisBundle, anon: Anonymizer): string
     ["glickoMissing", "smallSample", "cohortBias"],
     "横軸=自分TR−相手TRの帯。2線=実績勝率とGlicko/RD期待勝率。",
   );
-  parts.push(chapterSection(7, c7));
+  return chapterSection(7, c7);
+}
 
-  // 第8章 ライバル ─ 遭遇回数と対戦結果
+// 第8章 ライバル ─ 遭遇回数と対戦結果
+function chapter8(ctx: ChapterContext): string {
+  const { s, anon } = ctx;
   const rivals = (s.rivals ?? []) as Array<Record<string, any>>;
   let c8 = chapterHeader(8, "ライバル ─ 遭遇回数と対戦結果", "よく対戦した相手をプレイヤーIDで並べ、勝敗の結果を見る。");
   c8 += fig("27_rivals", "ライバル（遭遇回数Top10）");
@@ -403,9 +428,12 @@ export function renderChapters(bundle: AnalysisBundle, anon: Anonymizer): string
     most ? `最も多く対戦した相手とは${most.n}回（${most.wins}勝${most.losses}敗・${pct(most.win_rate)}）。` : "対戦相手別の集計不可。",
     ["privacy"],
   );
-  parts.push(chapterSection(8, c8));
+  return chapterSection(8, c8);
+}
 
-  // 第9章 接戦・決着局面
+// 第9章 接戦・決着局面
+function chapter9(ctx: ChapterContext): string {
+  const { s } = ctx;
   const tb = s.tiebreak as Record<string, any>;
   const scoreStates = (s.score_states ?? []) as Array<Record<string, any>>;
   const ssMap = new Map(scoreStates.map((x) => [x.label, x]));
@@ -459,9 +487,12 @@ export function renderChapters(bundle: AnalysisBundle, anon: Anonymizer): string
       ABILITY_METRICS.filter((m) => m in changes).map((m) => [m, metricFmt(m, changes[m], true)]),
     );
   }
-  parts.push(chapterSection(9, c9));
+  return chapterSection(9, c9);
+}
 
-  // 第10章 逆転・ビハインド展開
+// 第10章 逆転・ビハインド展開
+function chapter10(ctx: ChapterContext): string {
+  const { s } = ctx;
   const cb = (s.comeback ?? {}) as Record<string, any>;
   const fr = (cb.by_first_round ?? {}) as Record<string, any>;
   const wonFirst = (fr.won_first ?? {}) as Record<string, any>;
@@ -480,9 +511,12 @@ export function renderChapters(bundle: AnalysisBundle, anon: Anonymizer): string
     ["reverseCausation", "glickoMissing"],
     "第1ラウンド勝敗別のマッチ勝率と、最大ビハインド本数別の勝率。",
   );
-  parts.push(chapterSection(10, c10));
+  return chapterSection(10, c10);
+}
 
-  // 第11章 ラウンド展開とマッチ時間
+// 第11章 ラウンド展開とマッチ時間
+function chapter11(ctx: ChapterContext): string {
+  const { s } = ctx;
   const durations = (s.duration_bins ?? []) as Array<Record<string, any>>;
   const durationFiltered = durations.filter((d) => d.n >= 20);
   const worstDuration = durationFiltered.length ? minBy(durationFiltered, (x) => num(x.win_rate) ?? Infinity)! : null;
@@ -527,9 +561,12 @@ export function renderChapters(bundle: AnalysisBundle, anon: Anonymizer): string
     ["smallSample", "cohortBias"],
     "各時間帯の自分−相手の指標・スタイル差の平均。図は主要4指標、表は全指標。",
   );
-  parts.push(chapterSection(11, c11));
+  return chapterSection(11, c11);
+}
 
-  // 第12章 連戦の流れとセッション内のマッチ位置
+// 第12章 連戦の流れとセッション内のマッチ位置
+function chapter12(ctx: ChapterContext): string {
+  const { s } = ctx;
   const streak = s.streaks as Record<string, any>;
   const positions = (s.session_positions ?? []) as Array<Record<string, any>>;
   const streakStates = (s.streak_states ?? []) as Array<Record<string, any>>;
@@ -583,9 +620,12 @@ export function renderChapters(bundle: AnalysisBundle, anon: Anonymizer): string
     ["selectionBias", "smallSample", "normalized"],
     "位置別の勝率（棒）とAPM/PPS/VS/Area（1マッチ目=100で正規化した4線）。",
   );
-  parts.push(chapterSection(12, c12));
+  return chapterSection(12, c12);
+}
 
-  // 第13章 リプレイ確認候補
+// 第13章 リプレイ確認候補
+function chapter13(ctx: ChapterContext): string {
+  const { s, anon } = ctx;
   const replayCandidates = (s.replay_candidates ?? []) as Array<Record<string, any>>;
   const topReplay = replayCandidates[0];
   let c13 = chapterHeader(13, "リプレイ確認候補", "接戦の分岐点や普段と挙動が違ったラウンドを、リプレイで振り返る候補として並べる。各候補に見るポイントを付す。");
@@ -664,9 +704,7 @@ export function renderChapters(bundle: AnalysisBundle, anon: Anonymizer): string
     ["replayExpiry", "replayNotInspected"],
     "条件×優先度で勝利・敗北それぞれ最大5件。削除済みも参考表示。",
   );
-  parts.push(chapterSection(13, c13));
-
-  return parts.join("");
+  return chapterSection(13, c13);
 }
 
 function chapterSection(number: number, inner: string): string {

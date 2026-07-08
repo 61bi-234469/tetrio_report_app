@@ -36,16 +36,6 @@ function plainText(html: string): string {
   return html.replace(/<[^>]+>/g, "");
 }
 
-export function confidence(n: number, effect: number | null = null): [string, string] {
-  if (n >= 500 && (effect === null || Math.abs(effect) >= 0.03)) {
-    return ["高", "hi"];
-  }
-  if (n >= 100) {
-    return ["中", "mid"];
-  }
-  return ["低", "lo"];
-}
-
 // Chart.js 用に canvas を出す（Python版は base64 PNG の <img>）。
 export function fig(chartId: string, alt: string): string {
   return `<div class="fig"><div class="chart"><canvas id="${htmlEscape(chartId)}" aria-label="${htmlEscape(alt)}"></canvas></div></div>`;
@@ -164,24 +154,6 @@ export function recordsTableHtml(records: Array<Record<string, any>>): string {
     showDirection: false,
     mobile: "card",
   });
-}
-
-export function selectedRecordsCardsHtml(records: Array<Record<string, any>>): string {
-  const preferred = ["最高TR", "最高ランク", "勝利した相手最高TR", "最長連勝", "最長連敗", "最高単マッチAPM"];
-  const byName = new Map(records.map((r) => [r.name, r]));
-  const selected = preferred.map((name) => byName.get(name)).filter(Boolean).slice(0, 6) as Array<Record<string, any>>;
-  if (selected.length === 0) {
-    return `<p class="muted">表示できる記録なし。</p>`;
-  }
-  const cards = selected
-    .map((record) => {
-      const note = [htmlEscape(String(record.unit ?? "")), datefmt(record.date), htmlEscape(String(record.scope ?? ""))]
-        .filter((part) => part && part !== "—")
-        .join("／");
-      return `<div class="kpi"><div class="lab">${htmlEscape(String(record.name))}</div><div class="val">${recordValueCell(record)}</div><div class="note">${note}</div></div>`;
-    })
-    .join("");
-  return `<div class="kpis">${cards}</div>`;
 }
 
 export function selectedRecordKpis(records: Array<Record<string, any>>): Array<{ label: string; value: string; note: string }> {

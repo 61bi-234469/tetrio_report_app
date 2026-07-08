@@ -1,14 +1,16 @@
 import type { AnalysisBundle } from "../analysis/types";
 import type { Anonymizer } from "../render/anonymize";
 import { quantile, rollingMean } from "../analysis/stats";
+import { ABILITY_METRIC_COLUMNS, BASE_METRICS, OPPONENT_COLUMN } from "../analysis/enrich";
+import { trBandSeries } from "../analysis/tr-band";
 import { BASE_PARAM_COLUMNS, calculateAverageParams } from "../params";
+import { finiteNumber as numberOrNull } from "../utils";
 import {
   EXPECTED_COLOR,
   LOSS_COLOR,
   METRIC_COLORS,
   NEUTRAL_BAR_COLOR,
   PRIMARY_COLOR,
-  SERIES_COLORS,
   STYLE_COLORS,
   WIN_COLOR,
   alphaColor,
@@ -58,31 +60,9 @@ export const CHART_IDS = [
 
 export type ChartId = (typeof CHART_IDS)[number];
 
-// 第3章・第4章で扱う能力指標（render/chapters.ts ABILITY_METRICS と同一順）。
-const ABILITY_METRIC_LABELS = [
-  "APM", "PPS", "VS", "APP", "DS/Second", "DS/Piece", "APP+DS/Piece",
-  "VS/APM", "Cheese Index", "Garbage Eff.", "Area", "Est. TR",
-];
-// マッチ行の対応カラム（enrich.ts BASE_METRICS と同一対応）。
-const ABILITY_METRIC_COLUMNS: Record<string, string> = {
-  APM: "apm",
-  PPS: "pps",
-  VS: "vs",
-  APP: "APP",
-  "DS/Second": "DS/Second",
-  "DS/Piece": "DS/Piece",
-  "APP+DS/Piece": "APP+DS/Piece",
-  "VS/APM": "VS/APM",
-  "Cheese Index": "Cheese Index",
-  "Garbage Eff.": "Garbage Effi.",
-  Area: "Area",
-  "Est. TR": "Est. TR",
-};
+const ABILITY_METRIC_LABELS = ABILITY_METRIC_COLUMNS.map(([label]) => label);
 // Python版 03_capability_radar と同じ10軸。
-const RADAR_LABELS = [
-  "APM", "PPS", "VS", "APP", "DS/Second", "DS/Piece", "APP+DS/Piece",
-  "VS/APM", "Cheese Index", "Garbage Eff.",
-];
+const RADAR_LABELS = ABILITY_METRIC_LABELS.slice(0, 10); // APM〜Garbage Eff.（Python版03と同じ10軸）
 const TREND_GROUPS: Array<[ChartId, string, string[]]> = [
   ["05_monthly_normalized_trends", "APM / PPS / VS / VS/APM", ["VS/APM", "APM", "PPS", "VS"]],
   ["05_monthly_normalized_trends_ds", "DS/Second / DS/Piece", ["DS/Second", "DS/Piece"]],
@@ -277,8 +257,8 @@ function buildTrHistory(matches: AnalysisBundle["matches"], dateLabels: string[]
 function buildMetricBalance(matches: AnalysisBundle["matches"]): ChartConfig {
   const rows = ABILITY_METRIC_LABELS
     .map((label) => {
-      const selfColumn = ABILITY_METRIC_COLUMNS[label]!;
-      const opponentColumn = opponentMetricColumn(label, selfColumn);
+      const selfColumn = BASE_METRICS[label]!;
+      const opponentColumn = OPPONENT_COLUMN[selfColumn] ?? `opponent_${selfColumn}`;
       const self = distributionStats(matches.map((match) => match[selfColumn]));
       const opponent = distributionStats(matches.map((match) => match[opponentColumn]));
       if (self === null || opponent === null) {
@@ -473,7 +453,7 @@ function buildNormalizedTrendGroup(matches: AnalysisBundle["matches"], dateLabel
 }
 
 function rollingMetricMean(matches: AnalysisBundle["matches"], label: string, window: number): Array<number | null> {
-  const column = ABILITY_METRIC_COLUMNS[label]!;
+  const column = BASE_METRICS[label]!;
   return rollingParamColumnMean(matches, column, window);
 }
 
@@ -493,24 +473,12 @@ function rollingParamColumnMean(matches: AnalysisBundle["matches"], column: stri
 }
 
 function buildMonthlyTrBand(matches: AnalysisBundle["matches"]): ChartConfig {
-  const window = 50;
-  const rows = matches
-    .map((match) => ({
-      label: String(match.played_at_jst ?? "").slice(0, 10),
-      playedAt: String(match.played_at_jst ?? ""),
-      tr: numberOrNull(match.tr_after),
-    }))
-    .filter((row): row is { label: string; playedAt: string; tr: number } => row.tr !== null && row.playedAt.length > 0)
-    .sort((a, b) => a.playedAt.localeCompare(b.playedAt));
-  const labels = rows.map((row) => row.label);
-  const windows = rows.map((_, index) => rows.slice(Math.max(0, index - window + 1), index + 1).map((row) => row.tr));
-  const p10 = windows.map((values) => quantile(values, 0.1));
-  const p50 = windows.map((values) => quantile(values, 0.5));
-  const p90 = windows.map((values) => quantile(values, 0.9));
+  const band = trBandSeries(matches);
+  const { p10, p50, p90 } = band;
   return {
     type: "line",
     data: {
-      labels,
+      labels: band.labels,
       datasets: [
         { ...lineDataset("P10", p10.map(roundOrNull), EXPECTED_COLOR), pointRadius: 0, borderDash: [6, 4], borderWidth: 1.2 },
         {
@@ -980,12 +948,6 @@ function sessionPositionNumber(row: Record<string, unknown>): number | null {
   return match ? Number(match[0]) : null;
 }
 
-function opponentMetricColumn(label: string, selfColumn: string): string {
-  if (label === "Garbage Eff.") {
-    return "opponent_Garbage Effi.";
-  }
-  return `opponent_${selfColumn}`;
-}
 
 function distributionStats(values: unknown[]): { p10: number; p50: number; p90: number } | null {
   const finite = values
@@ -1015,11 +977,6 @@ function maxFinite(values: Array<number | null>): number {
 function maxAbsFinite(values: Array<number | null>): number {
   const finite = values.filter((value): value is number => value !== null && Number.isFinite(value));
   return finite.length ? Math.max(...finite.map((value) => Math.abs(value))) : 0;
-}
-
-function numberOrNull(value: unknown): number | null {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function isDerivedMetricColumn(column: string): boolean {

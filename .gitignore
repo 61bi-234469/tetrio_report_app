@@ -32,6 +32,7 @@ python/src/report_builder/input/*.pq
 
 # Local logs
 *.log
+log/
 
 # Local environment variables
 .env

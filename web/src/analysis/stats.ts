@@ -1,3 +1,5 @@
+import { toNumber } from "../utils";
+
 export function finiteNumbers(values: Iterable<unknown>): number[] {
   const out: number[] = [];
   for (const value of values) {
@@ -164,6 +166,25 @@ function variance(values: number[], ddof: number): number | null {
     return null;
   }
   return values.reduce((sum, value) => sum + (value - m) ** 2, 0) / (values.length - ddof);
+}
+
+export function robustZFactory(values: unknown[]): (value: unknown) => number | null {
+  const xs = values.map(toNumber).filter((value): value is number => value !== null);
+  const median = quantile(xs, 0.5);
+  if (median === null) {
+    return () => null;
+  }
+  const deviations = xs.map((value) => Math.abs(value - median));
+  const mad = quantile(deviations, 0.5);
+  const fallback = std(xs, 1);
+  const scale = mad && mad > 0 ? mad * 1.4826 : fallback;
+  if (!scale || scale <= 0) {
+    return () => null;
+  }
+  return (value: unknown): number | null => {
+    const parsed = toNumber(value);
+    return parsed === null ? null : (parsed - median) / scale;
+  };
 }
 
 function uniqueSortedEdges(values: number[]): number[] {

@@ -12,7 +12,7 @@ import {
   buildMatchRows,
   enrichRounds,
 } from "./enrich";
-import { RECENT_MATCH_WINDOW, SCORE_STATE_ORDER, STYLE_ORDER, TABLE_SCOPE_WINDOWS } from "./model";
+import { RANK_ORDER, RECENT_MATCH_WINDOW, SCORE_STATE_ORDER, STYLE_ORDER, TABLE_SCOPE_WINDOWS } from "./model";
 import { cohensD, mean, quantile, quantileBins, runLengths, std, wilsonInterval } from "./stats";
 import { BASE_PARAM_COLUMNS, calculateAverageParams, calculateParams } from "../params";
 import type { LeagueSummaryResult } from "../tetrio-api";
@@ -2043,8 +2043,7 @@ function hourBand(hour: number | null): string | null {
 }
 
 function rankOrder(rank: string): number {
-  const order = ["d", "d+", "c-", "c", "c+", "b-", "b", "b+", "a-", "a", "a+", "s-", "s", "s+", "ss", "u", "x", "x+"];
-  return order.indexOf(rank.trim().toLowerCase());
+  return (RANK_ORDER as readonly string[]).indexOf(rank.trim().toLowerCase());
 }
 
 function opponentColumn(col: string): string | null {

@@ -1,4 +1,5 @@
 import type { AnalysisBundle, DataRow, MatchRow, MonthlyRow, RoundRow, Summary, TiebreakRow } from "./types";
+import { expectedExcess, groupWinRate } from "./aggregate";
 import { applyExpectedWins } from "./expected";
 import {
   ABILITY_METRIC_COLUMNS,
@@ -13,7 +14,7 @@ import {
   enrichRounds,
 } from "./enrich";
 import { RANK_ORDER, RECENT_MATCH_WINDOW, SCORE_STATE_ORDER, STYLE_ORDER, STYLE_PLANE_MIN_MATCHES, STYLE_QUADRANTS, TABLE_SCOPE_WINDOWS } from "./model";
-import { cohensD, mean, quantile, quantileBins, runLengths, std, wilsonInterval } from "./stats";
+import { cohensD, mean, quantile, quantileBins, robustZFactory, runLengths, std, wilsonInterval } from "./stats";
 import { BASE_PARAM_COLUMNS, calculateAverageParams, calculateParams } from "../params";
 import type { LeagueSummaryResult } from "../tetrio-api";
 
@@ -2072,18 +2073,6 @@ function aggregateMetricMean(
   return mean(rows.map((row) => row[column]));
 }
 
-function groupWinRate(group: Array<Pick<MatchRow, "won">>): number | null {
-  return group.length ? group.filter((match) => match.won).length / group.length : null;
-}
-
-function expectedExcess(group: Array<{ won: boolean; expected_win?: unknown }>): number | null {
-  const valid = group.filter((match) => toNumber(match.expected_win) !== null);
-  if (!valid.length) {
-    return null;
-  }
-  return (mean(valid.map((match) => match.won ? 1 : 0)) ?? 0) - (mean(valid.map((match) => match.expected_win)) ?? 0);
-}
-
 function sumFinite(values: unknown[]): number | null {
   const xs = values.map(toNumber).filter((value): value is number => value !== null);
   return xs.length ? xs.reduce((sum, value) => sum + value, 0) : null;
@@ -2134,22 +2123,4 @@ function countBy<T>(items: T[], keyFn: (item: T) => string): Record<string, numb
   return out;
 }
 
-function robustZFactory(values: unknown[]): (value: unknown) => number | null {
-  const xs = values.map(toNumber).filter((value): value is number => value !== null);
-  const median = quantile(xs, 0.5);
-  if (median === null) {
-    return () => null;
-  }
-  const deviations = xs.map((value) => Math.abs(value - median));
-  const mad = quantile(deviations, 0.5);
-  const fallback = std(xs, 1);
-  const scale = mad && mad > 0 ? mad * 1.4826 : fallback;
-  if (!scale || scale <= 0) {
-    return () => null;
-  }
-  return (value: unknown): number | null => {
-    const parsed = toNumber(value);
-    return parsed === null ? null : (parsed - median) / scale;
-  };
-}
 

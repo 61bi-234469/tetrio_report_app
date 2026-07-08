@@ -8945,12 +8945,6 @@ exports[`characterization (refactoring safety net) > chart configs snapshot 1`] 
 }
 `;
 
-exports[`characterization (refactoring safety net) > rendered HTML hash (anonymized) 1`] = `"4f86e690414fbd08cc82095c8f998a51be9e7d5529194f5e34d05a8a728beeef"`;
-
-exports[`characterization (refactoring safety net) > rendered HTML hash (edge cases) 1`] = `"750e9ae709a5d7aae35709e08ffa3549411bcfbdeec8622fed3ff6b2d900d312"`;
-
-exports[`characterization (refactoring safety net) > rendered HTML hash (plain) 1`] = `"e47edc94c91758037dee76bc78b49f8b78ce8a3d348be0b37eafd936ff35add8"`;
-
 exports[`characterization (refactoring safety net) > summary snapshot (edge cases: DQ/tie/nullified/glicko-missing) 1`] = `
 {
   "comeback": {

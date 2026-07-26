@@ -18,7 +18,12 @@
   },
   "env": {
     "develop": {
-      "name": "league-report-develop"
+      "name": "league-report-develop",
+      "assets": {
+        "directory": "./public",
+        "binding": "ASSETS",
+        "run_worker_first": true
+      }
     }
   }
 }

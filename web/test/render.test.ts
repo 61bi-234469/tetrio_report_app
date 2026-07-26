@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { analyzeReport } from "../src/analysis/analyze";
 import { CHART_IDS } from "../src/charts/configs";
-import { renderDocument } from "../src/render/document";
+import { renderDocument, renderMessagePage } from "../src/render/document";
 import { advantageTable } from "../src/render/components";
 import type { RoundRow } from "../src/analysis/types";
 
@@ -28,6 +28,7 @@ describe("report document", () => {
     // 30マッチ未満はPython版と同じく空（第12章の平面集計なし）。
     expect(bundle.summary.style_matchup_plane).toEqual({});
     const html = renderDocument(bundle);
+    expect(html).toContain('<meta name="robots" content="noindex, nofollow">');
     expect(html).toContain("<title>戦績レポート for TETR.IO — your_username</title>");
     expect(html).toContain("<h1>戦績レポート for TETR.IO</h1>");
     expect(html).toContain("01_tr_history");
@@ -77,6 +78,13 @@ describe("report document", () => {
     expect(html).toContain('id="appendix-monthly"');
     expect(html).toContain('id="appendix-records"');
     expect(html).toContain('id="appendix-excess-grid"');
+  });
+
+  it("marks message pages as noindex", async () => {
+    const response = renderMessagePage(404, "Not Found", "ページが見つかりません。");
+
+    expect(response.status).toBe(404);
+    expect(await response.text()).toContain('<meta name="robots" content="noindex, nofollow">');
   });
 
   it("separates total matches from expected-win sample counts in advantage tables", () => {

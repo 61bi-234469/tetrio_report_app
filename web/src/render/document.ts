@@ -160,7 +160,7 @@ export function renderDocument(bundle: AnalysisBundle, options: RenderOptions = 
     : "";
   return [
     "<!doctype html>",
-    `<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">`,
+    `<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, nofollow">`,
     `<title>${htmlEscape(title)}</title><link rel="icon" href="data:,"><style>${REPORT_CSS}</style></head><body>`,
     `<a id="top"></a>`,
     `<div class="wrap">`,
@@ -187,7 +187,7 @@ export function renderDocument(bundle: AnalysisBundle, options: RenderOptions = 
 
 export function renderMessagePage(status: number, title: string, message: string): Response {
   const html = [
-    "<!doctype html><html lang=\"ja\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">",
+    "<!doctype html><html lang=\"ja\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex, nofollow\">",
     `<title>${htmlEscape(title)}</title><link rel="icon" href="data:,"><style>${REPORT_CSS}</style></head><body>`,
     `<div class="wrap"><main class="message"><h1>${htmlEscape(title)}</h1><p>${htmlEscape(message)}</p><a href="/">フォームへ戻る</a></main></div>`,
     "</body></html>",

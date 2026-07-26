@@ -2,9 +2,10 @@ import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { PRODUCTION_HOST, SECURITY_HEADERS } from "../src/site";
+import { PRODUCTION_HOST, SEARCH_CONSOLE_VERIFICATION_FILE, SECURITY_HEADERS } from "../src/site";
 
 const publicDir = resolve(fileURLToPath(new URL(".", import.meta.url)), "..", "public");
+const webDir = resolve(publicDir, "..");
 const readPublic = (name: string): string => readFileSync(resolve(publicDir, name), "utf8").replace(/\r\n/g, "\n");
 
 describe("landing-page SEO contract", () => {
@@ -84,5 +85,15 @@ describe("landing-page SEO contract", () => {
     for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
       expect(headersFile).toContain(`  ${name}: ${value}\n`);
     }
+  });
+
+  it("routes the Search Console verification path through the Worker in production", () => {
+    // 静的アセット直配信だと .html が307でリダイレクトされ確認に失敗するため、
+    // wrangler.jsonc の run_worker_first にこのパスを明示しておく必要がある。
+    const config = JSON.parse(readFileSync(resolve(webDir, "wrangler.jsonc"), "utf8"));
+
+    expect(config.assets.run_worker_first).toContain(SEARCH_CONSOLE_VERIFICATION_FILE.path);
+    // このパス自体は public/ に静的ファイルとして置かない。Worker側の直接応答が唯一の実体。
+    expect(existsSync(resolve(publicDir, SEARCH_CONSOLE_VERIFICATION_FILE.path.slice(1)))).toBe(false);
   });
 });

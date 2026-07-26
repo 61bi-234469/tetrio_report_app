@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { handleRequest, type Env } from "../src/index";
-import { PRODUCTION_HOST } from "../src/site";
+import { PRODUCTION_HOST, SEARCH_CONSOLE_VERIFICATION_FILE } from "../src/site";
 
 describe("worker endpoint", () => {
   afterEach(() => {
@@ -54,6 +54,23 @@ describe("worker endpoint", () => {
     expect(response.headers.get("X-Robots-Tag")).toBe("noindex, nofollow");
     expect(html).toContain('<meta name="robots" content="noindex, nofollow">');
     expect(html).toContain("ページが見つかりません。");
+  });
+
+  it("serves the Search Console verification file directly, bypassing the asset redirect", async () => {
+    // Cloudflareの静的アセットは既定でURLの .html を落として307リダイレクトするため、
+    // ASSETS.fetch を経由すると確認用URLが200で返らない。Workerが直接返すことを確認する。
+    const assetsFetch = vi.fn(async () => new Response(null, { status: 307 }));
+    const env = { ASSETS: { fetch: assetsFetch } } as unknown as Env;
+
+    const response = await handleRequest(
+      new Request(`https://${PRODUCTION_HOST}${SEARCH_CONSOLE_VERIFICATION_FILE.path}`),
+      env,
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe(SEARCH_CONSOLE_VERIFICATION_FILE.body);
+    expect(response.headers.get("X-Robots-Tag")).toBeNull();
+    expect(assetsFetch).not.toHaveBeenCalled();
   });
 
   it.each([

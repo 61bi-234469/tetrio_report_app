@@ -11,30 +11,12 @@ import {
   validateUsername,
 } from "./tetrio-api";
 import { renderDocument, renderMessagePage } from "./render/document";
+import { PRODUCTION_HOST, SECURITY_HEADERS } from "./site";
 import type { DataRow, RoundRow } from "./analysis/types";
 
 export interface Env {
   ASSETS: Fetcher;
 }
-
-const SECURITY_HEADERS: Record<string, string> = {
-  "Content-Security-Policy": [
-    "default-src 'self'",
-    "script-src 'self' 'unsafe-inline'",
-    "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data:",
-    "connect-src 'self' https://ch.tetr.io",
-    "font-src 'self'",
-    "object-src 'none'",
-    "base-uri 'none'",
-    "form-action 'self'",
-    "frame-ancestors 'none'",
-  ].join("; "),
-  "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()",
-  "Referrer-Policy": "no-referrer",
-  "Strict-Transport-Security": "max-age=31536000",
-  "X-Content-Type-Options": "nosniff",
-};
 
 const PROXY_RATE_LIMIT_WINDOW_MS = 60_000;
 const PROXY_RATE_LIMIT_MAX_REQUESTS = 60;
@@ -47,7 +29,7 @@ export default {
 };
 
 export async function handleRequest(request: Request, env?: Env): Promise<Response> {
-  return withSecurityHeaders(await routeRequest(request, env));
+  return withSecurityHeaders(await routeRequest(request, env), request);
 }
 
 async function routeRequest(request: Request, env?: Env): Promise<Response> {
@@ -65,7 +47,11 @@ async function routeRequest(request: Request, env?: Env): Promise<Response> {
     return handleLeagueSummary(url, request);
   }
   if (env?.ASSETS) {
-    return env.ASSETS.fetch(request);
+    const assetResponse = await env.ASSETS.fetch(request);
+    if (assetResponse.status === 404) {
+      return renderMessagePage(404, "Not Found", "ページが見つかりません。");
+    }
+    return assetResponse;
   }
   if (url.pathname === "/") {
     return renderMessagePage(200, "戦績レポート for TETR.IO", "静的フォームはwrangler devで配信されます。");
@@ -195,10 +181,14 @@ export function __resetProxyRateLimitForTests(): void {
   proxyRateLimits.clear();
 }
 
-function withSecurityHeaders(response: Response): Response {
+function withSecurityHeaders(response: Response, request: Request): Response {
   const headers = new Headers(response.headers);
   for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
     headers.set(name, value);
+  }
+  const url = new URL(request.url);
+  if (url.hostname !== PRODUCTION_HOST || url.pathname.startsWith("/api/") || response.status >= 400) {
+    headers.set("X-Robots-Tag", "noindex, nofollow");
   }
   return new Response(response.body, {
     status: response.status,

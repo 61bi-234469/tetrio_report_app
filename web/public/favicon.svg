@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-labelledby="title desc">
+  <title id="title">戦績レポート</title>
+  <desc id="desc">青緑と橙のブロックで表した分析レポートのアイコン</desc>
+  <rect width="64" height="64" rx="14" fill="#10233f"/>
+  <path fill="#63d7c5" d="M12 14h16v12H16v12H12zm16 12h16v12H28zm16 12h8v12H44z"/>
+  <path fill="#ffb36b" d="M34 14h18v8H34zm-6 8h14v8H28zm-8 8h14v8H20z" opacity=".95"/>
+</svg>

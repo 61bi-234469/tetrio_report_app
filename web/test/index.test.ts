@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { handleRequest } from "../src/index";
+import { handleRequest, type Env } from "../src/index";
+import { PRODUCTION_HOST } from "../src/site";
 
 describe("worker endpoint", () => {
   afterEach(() => {
@@ -27,6 +28,7 @@ describe("worker endpoint", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toContain("text/html");
+    expect(response.headers.get("X-Robots-Tag")).toBe("noindex, nofollow");
     expect(response.headers.get("Content-Security-Policy")).toContain("frame-ancestors 'none'");
     expect(response.headers.get("X-Content-Type-Options")).toBe("nosniff");
     expect(html).toContain("const CHART_CONFIGS=");
@@ -35,6 +37,66 @@ describe("worker endpoint", () => {
     expect(html).toContain("summary API 由来の現在値");
     expect(html).toContain("現在TR（summary）");
     expect(html).toContain("TETR.IO / osk");
+  });
+
+  it("marks an asset-served 404 as a noindex worker error page", async () => {
+    const env = {
+      ASSETS: { fetch: vi.fn(async () => new Response("missing", { status: 404 })) },
+    } as unknown as Env;
+
+    const response = await handleRequest(
+      new Request("https://league-report.61bi.workers.dev/missing"),
+      env,
+    );
+    const html = await response.text();
+
+    expect(response.status).toBe(404);
+    expect(response.headers.get("X-Robots-Tag")).toBe("noindex, nofollow");
+    expect(html).toContain('<meta name="robots" content="noindex, nofollow">');
+    expect(html).toContain("ページが見つかりません。");
+  });
+
+  it.each([
+    ["develop", "https://league-report-develop.61bi.workers.dev/"],
+    ["versioned preview", "https://a1b2c3d4-league-report-develop.61bi.workers.dev/"],
+    ["local dev", "http://localhost:8788/"],
+  ])("marks every %s asset response as noindex", async (_label, requestUrl) => {
+    const env = {
+      ASSETS: { fetch: vi.fn(async () => new Response("asset")) },
+    } as unknown as Env;
+
+    const response = await handleRequest(new Request(requestUrl), env);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("X-Robots-Tag")).toBe("noindex, nofollow");
+    expect(await response.text()).toBe("asset");
+  });
+
+  it("exports only handler-shaped values from the worker entry", async () => {
+    // 定数をエントリからexportするとworkerdが起動時に落ちる（型は function か ExportedHandler のみ）。
+    const entry = await import("../src/index");
+
+    for (const [name, value] of Object.entries(entry)) {
+      if (name === "default") {
+        expect(typeof (value as { fetch?: unknown }).fetch).toBe("function");
+        continue;
+      }
+      expect(typeof value, `export ${name}`).toBe("function");
+    }
+  });
+
+  it("keeps production landing assets indexable", async () => {
+    const env = {
+      ASSETS: { fetch: vi.fn(async () => new Response("asset")) },
+    } as unknown as Env;
+
+    const response = await handleRequest(
+      new Request(`https://${PRODUCTION_HOST}/`),
+      env,
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("X-Robots-Tag")).toBeNull();
   });
 });
 

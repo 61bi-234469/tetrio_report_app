@@ -1,0 +1,9 @@
+# 静的アセットはWorkerを通らずアセットサーバーが直接返すため、
+# src/index.ts の SECURITY_HEADERS と同じ内容をここでも付ける。
+# 値の一致は test/seo.test.ts が検証する。
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://ch.tetr.io; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
+  Referrer-Policy: no-referrer
+  Strict-Transport-Security: max-age=31536000
+  X-Content-Type-Options: nosniff

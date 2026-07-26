@@ -27,6 +27,7 @@ describe("league-page proxy", () => {
     expect(response.status).toBe(200);
     expect(await response.text()).toBe(JSON.stringify({ ok: 1 }));
     expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.headers.get("X-Robots-Tag")).toBe("noindex, nofollow");
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -140,6 +141,7 @@ describe("league-page proxy", () => {
     expect(response.status).toBe(200);
     expect(await response.text()).toBe(JSON.stringify({ success: true, data: { apm: 82.42 } }));
     expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.headers.get("X-Robots-Tag")).toBe("noindex, nofollow");
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

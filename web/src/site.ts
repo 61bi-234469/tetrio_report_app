@@ -24,3 +24,12 @@ export const SECURITY_HEADERS: Record<string, string> = {
   "Strict-Transport-Security": "max-age=31536000",
   "X-Content-Type-Options": "nosniff",
 };
+
+// Search Consoleの「HTMLファイル」所有権確認。
+// Cloudflareの静的アセット配信は `.html` 拡張子つきURLを拡張子なしへ307リダイレクトするため
+// （html_handling既定値）、確認用URLがそのまま200で返らない。このファイルだけ
+// wrangler.jsonc の run_worker_first でWorkerへ通し、ここで直接返して回避する。
+export const SEARCH_CONSOLE_VERIFICATION_FILE = {
+  path: "/google47229da306c3f676.html",
+  body: "google-site-verification: google47229da306c3f676.html",
+};

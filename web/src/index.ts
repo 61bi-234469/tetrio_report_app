@@ -11,7 +11,7 @@ import {
   validateUsername,
 } from "./tetrio-api";
 import { renderDocument, renderMessagePage } from "./render/document";
-import { PRODUCTION_HOST, SECURITY_HEADERS } from "./site";
+import { PRODUCTION_HOST, SEARCH_CONSOLE_VERIFICATION_FILE, SECURITY_HEADERS } from "./site";
 import type { DataRow, RoundRow } from "./analysis/types";
 
 export interface Env {
@@ -45,6 +45,11 @@ async function routeRequest(request: Request, env?: Env): Promise<Response> {
   }
   if (url.pathname === "/api/league-summary") {
     return handleLeagueSummary(url, request);
+  }
+  if (url.pathname === SEARCH_CONSOLE_VERIFICATION_FILE.path) {
+    return new Response(SEARCH_CONSOLE_VERIFICATION_FILE.body, {
+      headers: { "content-type": "text/html; charset=utf-8" },
+    });
   }
   if (env?.ASSETS) {
     const assetResponse = await env.ASSETS.fetch(request);

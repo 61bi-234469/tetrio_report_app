@@ -383,8 +383,9 @@ function buildStability(matches: MatchRow[]): Record<string, unknown> {
       recent_p10: quantile(recent.map((match) => match[col]), 0.1),
       recent_p50: quantile(recent.map((match) => match[col]), 0.5),
       recent_p90: quantile(recent.map((match) => match[col]), 0.9),
-      early_cv: earlyMean ? (earlyStd ?? 0) / earlyMean : null,
-      recent_cv: recentMean ? (recentStd ?? 0) / recentMean : null,
+      // 標本不足でSDが出ない窓はCVもnull。0にすると「ばらつきなし」と読めてしまう。
+      early_cv: earlyMean && earlyStd !== null ? earlyStd / earlyMean : null,
+      recent_cv: recentMean && recentStd !== null ? recentStd / recentMean : null,
     };
   }
   return out;
@@ -827,7 +828,7 @@ function buildRecords(
     const row = maxRow(matches, col);
     if (row) add(name, row[col], unit, row, "単マッチ平均");
   }
-  const singleRoundNote = "単ラウンドPRは切断・DQ・極短ラウンドの影響を受ける場合があります。";
+  const singleRoundNote = "単ラウンドPRは切断・DQ・極短ラウンドの影響を受ける場合がある。";
   for (const [col, name, unit] of [
     ["apm", "単ラウンド最高APM", "APM"],
     ["pps", "単ラウンド最高PPS", "PPS"],

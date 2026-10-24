@@ -23,7 +23,7 @@ export const CHAPTER_TITLES = [
   "連戦の流れとセッション内のマッチ位置",
   "リプレイ確認候補",
 ];
-export const ACTIVE_CHAPTER_NUMBERS = [1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
+export const ACTIVE_CHAPTER_NUMBERS = [1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 // 部（大セクション）。各タプルは [ローマ数字, 部名, 開始章番号]。
 export const PARTS: Array<[string, string, number]> = [
   ["Ⅰ", "全体像", 1],
@@ -32,7 +32,6 @@ export const PARTS: Array<[string, string, number]> = [
   ["Ⅳ", "対戦相手", 7],
   ["Ⅴ", "局面", 9],
   ["Ⅵ", "時間と連戦", 11],
-  ["Ⅶ", "振り返り", 13],
 ];
 const PART_AT = new Map<number, [string, string, number]>(
   PARTS.map(([roman, name, start], i) => [start, [roman, name, i + 1]]),
@@ -172,7 +171,7 @@ export function renderChapters(bundle: AnalysisBundle, anon: Anonymizer): string
   return [
     chapter1(ctx), chapter3(ctx), chapter4(ctx), chapter5(ctx), chapter6(ctx),
     chapter7(ctx), chapter8(ctx), chapter9(ctx), chapter10(ctx), chapter11(ctx),
-    chapter12(ctx), chapter13(ctx),
+    chapter12(ctx),
   ].join("");
 }
 
@@ -207,7 +206,7 @@ function chapter1(ctx: ChapterContext): string {
   c1 += fig("01_tr_history", "TR推移");
   c1 += block(
     `確認できる最初のTRは${nfmt(kpi.first_tr, 0, true)}、現在は${nfmt(kpi.current_tr, 0, true)}、差は${nfmt(kpi.tr_change, 0, true)}。ピークは${nfmt(kpi.peak_tr, 0, true)}（${dateText(kpi.peak_date)}、現在はここから${nfmt(peakGap, 0)}）、最大ドローダウンは${nfmt(kpi.max_drawdown, 0, true)}。${rankSentence}`,
-    ["cohortBias"],
+    ["cohortBias", "dqIncluded"],
     "縦軸TR・Est. TR。ランク切替点に新ランクを表示。",
   );
   c1 += "<h3>直近窓別の実績 vs 期待</h3>" + table(["期間", "勝数", "実績", "期待", "期待対象", "期待超過", "超過勝数"], windowRows, { mobileColumns: [0, 2, 3, 5] });
@@ -229,7 +228,8 @@ function chapter3(ctx: ChapterContext): string {
     const rate = num(row.growth_rate);
     return rate === null ? -999 : rate;
   })!;
-  let c3 = chapterHeader(3, "成長推移と安定性", "マッチ日時ベースの指標推移と、直近10・50・100マッチ・全期間の指標平均。");
+  const growthWindowLabels = growthWindows.map((w) => String(w.label)).join("・");
+  let c3 = chapterHeader(3, "成長推移と安定性", `マッチ日時ベースの指標推移と、${growthWindowLabels}の指標平均。`);
   c3 += fig("05_monthly_normalized_trends", "APM / PPS / VS / VS/APM");
   c3 += fig("05_monthly_normalized_trends_ds", "DS/Second / DS/Piece");
   c3 += fig("05_monthly_normalized_trends_attack", "APP / APP+DS/Piece / Garbage Eff.");
@@ -279,8 +279,8 @@ function chapter4(ctx: ChapterContext): string {
   c4 += fig("02_metric_distributions", "主要指標分布");
   c4 += block(
     `平均APMは自分${nfmt(metrics.APM.self, 1)}・相手${nfmt(metrics.APM.opponent, 1)}、PPSは自分${nfmt(metrics.PPS.self, 2)}・相手${nfmt(metrics.PPS.opponent, 2)}、VSは自分${nfmt(metrics.VS.self, 1)}・相手${nfmt(metrics.VS.opponent, 1)}。相手平均との差が大きい軸の一つは${strongest}で、範囲の重なりが大きい指標は平均差があっても単独の勝敗判別力は限定的。`,
-    ["aggregation"],
-    "太帯=自分/細帯=相手のP10-P90、◆=自分の中央値、基準線100=相手中央値。",
+    ["aggregation", "matchLevelSource"],
+    "太帯=自分/細帯=相手のP10-P90、◆=自分の中央値、基準線100=相手中央値。相手中央値が0の指標は基準化できないため非表示。",
   );
   c4 += `<h3>能力レーダーと4プレイスタイル（履歴分析・${recentTag}）</h3>` + fig("03_capability_radar", "能力レーダー");
   c4 += block(
@@ -324,7 +324,7 @@ function chapter5(ctx: ChapterContext): string {
   c5 += "<h3>相対差と勝率（マッチ単位）</h3>" + grain("マッチ単位。自分−相手の差を分位ビンに分け、APM・PPS・VS・Areaの勝率を見る。");
   c5 += fig("09_delta_metric_winrate", "相対差と勝率");
   c5 += block(
-    `最左ビンから最右ビンまでの勝率差は${pp(deltaVsSpan)}。各点のマッチ数（n）はツールチップで確認できる。`,
+    `VSの最左ビンから最右ビンまでの勝率差は${pp(deltaVsSpan)}。各点のマッチ数（n）はツールチップで確認できる。`,
     ["binBoundary"],
     "横軸=自分−相手の差を指標ごとに並べた分位ビン、縦軸=勝率。右ほど自分優位。",
   );
@@ -477,7 +477,7 @@ function chapter9(ctx: ChapterContext): string {
     : "タイブレーク該当マッチを抽出不可。";
   c9 += block(
     tbResult,
-    ["selectionBias"],
+    ["selectionBias", "roundDqMixed"],
     "最終スコア差1・双方あと1本のマッチ。棒=追いつき/追いつかれ経路別の実績と期待。",
   );
   if (tb.final_changes) {
@@ -545,7 +545,7 @@ function chapter11(ctx: ChapterContext): string {
   c11 += block(
     worstDuration ? `標本20以上で最も低い帯は${htmlEscape(String(worstDuration.label))}、勝率${pct(worstDuration.win_rate)}（n=${worstDuration.n}）。` : "十分な標本の時間帯なし。",
     ["reverseCausation", "smallSample"],
-    "30秒幅の決着時間帯ごとのラウンド勝率と標本数。",
+    "30秒幅の決着時間帯ごとのラウンド勝率と標本数。図・表とも標本20以上の帯のみ。",
   );
   const durationDeltaMetrics = [...ABILITY_METRICS, ...STYLE_ORDER];
   const deltaRows = durationFiltered.map((d) => [d.label, d.n, ...durationDeltaMetrics.map((m) => metricFmt(m, d[`delta_${m}`], true))]);
@@ -623,12 +623,12 @@ function chapter12(ctx: ChapterContext): string {
   return chapterSection(12, c12);
 }
 
-// 第13章 リプレイ確認候補
-function chapter13(ctx: ChapterContext): string {
-  const { s, anon } = ctx;
+// 付録D リプレイ確認候補（APIの統計値だけで選ぶため、本編ではなく付録に置く）
+export function renderReplayCandidates(bundle: AnalysisBundle, anon: Anonymizer): string {
+  const s = bundle.summary as any;
   const replayCandidates = (s.replay_candidates ?? []) as Array<Record<string, any>>;
   const topReplay = replayCandidates[0];
-  let c13 = chapterHeader(13, "リプレイ確認候補", "接戦の分岐点や普段と挙動が違ったラウンドを、リプレイで振り返る候補として並べる。各候補に見るポイントを付す。");
+  let c13 = "";
   if (replayCandidates.length) {
     const replayItems = replayCandidates.map((r) => {
       const opponent = tetrioProfileLink(r.opponent ?? r.opponent_id, r.opponent ?? r.opponent_id ?? "?", anon);
@@ -704,7 +704,7 @@ function chapter13(ctx: ChapterContext): string {
     ["replayExpiry", "replayNotInspected"],
     "条件×優先度で勝利・敗北それぞれ最大5件。削除済みも参考表示。",
   );
-  return chapterSection(13, c13);
+  return c13;
 }
 
 function chapterSection(number: number, inner: string): string {

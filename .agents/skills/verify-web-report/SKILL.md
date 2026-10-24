@@ -61,8 +61,9 @@ exists. Never present `npm run check` alone as full verification of a visual cha
 4. Wait for the report to render, then verify:
    - Browser console must be **error-free**. A thrown error usually means a chart config or analysis
      field is missing.
-   - Confirm the chapter structure is present. Active chapters are 1 and 3–13 (chapter 2 was
-     removed); each renders a `第N章` heading. Spot-check that the page is a report, not an error
+   - Confirm the chapter structure is present. Active chapters are 1 and 3–12 (chapter 2 was
+     removed; the replay candidates moved to appendix D, `#appendix-replay`); each renders a
+     `第N章` heading. Spot-check that the page is a report, not an error
      screen.
    - If a chart change was the point of the edit, confirm the expected chart ids exist in the DOM
      (e.g. `01_tr_history`, `29_session_decay`).

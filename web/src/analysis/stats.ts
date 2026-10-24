@@ -150,10 +150,19 @@ export function quantileBins(values: Array<number | null | undefined>, q = 5): Q
   return bins;
 }
 
-export function rollingMean(values: Array<number | null | undefined>, window = 10): Array<number | null> {
+// pandas の rolling(window, min_periods).mean() と同じ挙動。窓内の有効値が minPeriods 未満なら null。
+export function rollingMean(
+  values: Array<number | null | undefined>,
+  window = 10,
+  minPeriods = 1,
+): Array<number | null> {
   return values.map((_, index) => {
     const start = Math.max(0, index - window + 1);
-    return mean(values.slice(start, index + 1));
+    const slice = values.slice(start, index + 1);
+    if (finiteNumbers(slice).length < minPeriods) {
+      return null;
+    }
+    return mean(slice);
   });
 }
 

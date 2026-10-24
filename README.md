@@ -3,7 +3,7 @@
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
 ![Status](https://img.shields.io/badge/Status-Unofficial-lightgrey)
 
-tetr.io の Tetra League 戦績を TETRA CHANNEL API から取得し、12章構成のHTML分析レポートを生成するツールです（英語表記: League Report for TETR.IO）。
+tetr.io の Tetra League 戦績を TETRA CHANNEL API から取得し、11章＋付録構成のHTML分析レポートを生成するツールです（英語表記: League Report for TETR.IO）。
 
 本ツールには2つの版があります。
 
@@ -13,6 +13,12 @@ tetr.io の Tetra League 戦績を TETRA CHANNEL API から取得し、12章構�
 | **Python版（旧版）** | `python/` | 旧版。更新停止予定（保守のみ） |
 
 本ツールは非公式です。TETR.IO / osk とは関係ありません。"TETR.IO" は権利者の商標です。
+
+## Webアプリ
+
+インストール不要で、ブラウザーからそのまま使えます。
+
+**https://league-report.61bi.workers.dev/**
 
 ## サンプルレポート
 
@@ -26,7 +32,7 @@ tetr.io の Tetra League 戦績を TETRA CHANNEL API から取得し、12章構�
 
 ## Web版（現行）
 
-Cloudflare Workers 上で動くWebアプリです。ブラウザーでユーザー名と取得マッチ数を入力すると、12章構成の戦績分析レポート（グラフはChart.js）を1ページのHTMLとして生成します。
+Cloudflare Workers 上で動くWebアプリです（公開URL: <https://league-report.61bi.workers.dev/>）。ブラウザーでユーザー名と取得マッチ数を入力すると、11章＋付録構成の戦績分析レポート（グラフはChart.js）を1ページのHTMLとして生成します。
 
 - Workerは TETRA CHANNEL API への軽量プロキシ（`/api/league-page`）として動作し、レポートの集計・描画はブラウザー側（`public/report.js`）で行います。Workers無料プランでも動かせる構成です。
 - OSを問わず利用できます。
@@ -74,12 +80,9 @@ Python版では、ツールが作る**①戦績レポート（本体）**に加�
 
 ### 旧版サンプルレポート
 
-旧Python版のサンプルは参考用です。新規利用はWeb版を推奨します。
+旧Python版のサンプルHTMLは配布していません。Python版には対戦相手の匿名化機能がなく、生成物に相手の実ハンドルがそのまま残るためです。出力イメージは匿名化済みの[Web版サンプル](https://htmlpreview.github.io/?https://github.com/61bi-234469/tetrio_report_app/blob/develop/samples/sample_web_report.html)で確認してください。章立てはWeb版とおおむね共通です。
 
-| レポート種別 | リンク |
-|---|---|
-| 旧Python版 ① 戦績レポート（本体） | [サンプルを見る](https://htmlpreview.github.io/?https://github.com/61bi-234469/tetrio_report_app/blob/develop/python/samples/sample_report.html) |
-| 旧Python版 ② AI考察レポート（別紙・Python版のみ） | [サンプルを見る](https://htmlpreview.github.io/?https://github.com/61bi-234469/tetrio_report_app/blob/develop/python/samples/sample_ai_report.html) |
+Python版を自分で動かして生成したレポートを共有する場合は、対戦相手のハンドルが本文・表・グラフ画像に含まれる点に注意してください。
 
 | | ① 戦績レポート（本体） | ② AI考察レポート（別紙） |
 |---|---|---|

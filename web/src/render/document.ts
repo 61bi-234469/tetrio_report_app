@@ -107,7 +107,8 @@ function buildToc(): string {
     '<div class="muted" style="font-size:13px">付録：' +
     '<a href="#appendix-monthly">付録A 月別集計</a>　／　' +
     '<a href="#appendix-records">付録B パーソナルレコード（全）</a>　／　' +
-    '<a href="#appendix-excess-grid">付録C 曜日・時間帯別の期待値調整後成績</a></div>';
+    '<a href="#appendix-excess-grid">付録C 曜日・時間帯別の期待値調整後成績</a>　／　' +
+    '<a href="#appendix-replay">付録D リプレイ確認候補</a></div>';
   return toc;
 }
 
@@ -172,7 +173,7 @@ export function renderDocument(bundle: AnalysisBundle, options: RenderOptions = 
     `<div class="note-box">${buildNoteBox(bundle)}</div>`,
     `<div class="toc">${buildToc()}</div>`,
     renderChapters(bundle, anon),
-    renderAppendices(bundle),
+    renderAppendices(bundle, anon),
     caveatNotes(),
     buildFooter(bundle, anon),
     `</div>`,

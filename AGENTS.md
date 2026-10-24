@@ -27,6 +27,7 @@
 - `docs/` holds local-only design notes and is Git-ignored; new plans and records go there, not into tracked files. Name new files `YYYY_MM_DD_<topic>.md`. After implementing a plan doc, append a dated results section (対応結果) to the same file: what was done, review findings and their resolution, and verification results — including any verification step that could not be completed and must be redone.
 - `your_username` is the placeholder player identifier in defaults, docs, and samples. Do not commit real TETR.IO handles, opponent data, or other personal identifiers into tracked source or fixtures.
 - Exception: `61bi_234469` is the repository owner's own TETR.IO handle and may appear in checked-in sample reports when the owner explicitly permits it. Keep other player/opponent identifiers anonymized unless similarly authorized.
+- The Python edition has no anonymization option: its generated reports carry opponent handles in the rival table, in the AI commentary, and burned into the chart PNGs, where a text search cannot find them. Do not commit Python-edition report output. The only tracked sample report is `samples/sample_web_report.html`, generated with `anonymize=on`.
 
 ## Report Writing Style
 - User-facing report text is concise Japanese in plain form (常体), not desu/masu (敬体). Default to noun-ending (体言止め); use a plain declarative verb (だ・である／〜する・〜ない) only when a verb is needed. This keeps strings short, stays consistent, and maps cleanly to a future English (neutral declarative) translation.
@@ -41,6 +42,7 @@
 - Before reporting a `web/` change as verified, follow `.agents/skills/verify-web-report/SKILL.md` (run `npm run check`, then render the report in a real browser).
 - To push or release the web edition, follow `.agents/skills/deploy-web/SKILL.md` (develop auto-deploy via Actions; production via merge to `main` + `wrangler deploy`).
 - To refresh `samples/sample_web_report.html`, follow `.agents/skills/update-web-sample-report/SKILL.md`.
+- To get an independent review from a second model ("Sol", OpenAI `gpt-6.1-sol` driven through the Codex CLI), follow `.agents/skills/sol-review/SKILL.md`. Ask for one before deploying or pushing a large or risky change (metrics/analysis, renderer, the Worker, the Python pipeline, CI workflows, instruction files), and whenever the user asks for a Sol review. Briefs and logs go in the Git-ignored `docs/reviews/`.
 - If a skill's verification step cannot be completed in the current environment (e.g. no browser tooling), do not report the task as verified — state exactly which step was skipped and why, and record it so the next session can finish it.
 
 ## Git and Delivery Rules

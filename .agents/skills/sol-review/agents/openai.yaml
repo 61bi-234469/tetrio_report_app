@@ -1,0 +1,4 @@
+interface:
+  display_name: "Sol Review"
+  short_description: "Independent read-only review by gpt-6.1-sol via Codex CLI"
+  default_prompt: "Use $sol-review to get an independent Sol review of the current change."

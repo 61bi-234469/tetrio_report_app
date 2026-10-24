@@ -71,6 +71,10 @@ const TREND_GROUPS: Array<[ChartId, string, string[]]> = [
   ["05_monthly_normalized_trends_rating", "Area / Est. TR", ["Area", "Est. TR"]],
 ];
 const ROLLING_WINDOW = 10;
+// 決着時間帯の最小標本。図17・図19・第11章の表で共通。
+const DURATION_BIN_MIN_N = 20;
+// 図27に描くライバル数。キャプション「遭遇回数Top10」と一致させる。
+const RIVAL_CHART_ROWS = 10;
 
 export function buildChartConfigs(bundle: AnalysisBundle, anon: Anonymizer): Record<ChartId, ChartConfig> {
   const { matches, monthly, summary } = bundle;
@@ -176,9 +180,9 @@ export function buildChartConfigs(bundle: AnalysisBundle, anon: Anonymizer): Rec
     data: {
       labels: dateLabels,
       datasets: Object.entries(STYLE_COLORS).map(([style, color]) =>
-        lineDataset(style, rollingParamColumnMean(matches, style, 20), color)),
+        lineDataset(style, rollingParamColumnMean(matches, style, ROLLING_WINDOW), color)),
     },
-    options: baseOptions({ x: dateAxis(), y: axis("スタイル傾向（20マッチ平均）") }),
+    options: baseOptions({ x: dateAxis(), y: axis(`スタイル傾向（${ROLLING_WINDOW}マッチ平均）`) }),
   };
 
   // 21/22: 曜日・時間帯別の実績 vs 期待。
@@ -264,7 +268,11 @@ function buildMetricBalance(matches: AnalysisBundle["matches"]): ChartConfig {
       if (self === null || opponent === null) {
         return null;
       }
-      const baseline = Math.abs(opponent.p50) > 0 ? Math.abs(opponent.p50) : Math.max(Math.abs(self.p50), 1);
+      // 基準線100は相手中央値。相手中央値が0の指標は同じ意味で描けないため行ごと落とす。
+      if (opponent.p50 === 0) {
+        return null;
+      }
+      const baseline = Math.abs(opponent.p50);
       const scale = (value: number) => round2((value / baseline) * 100);
       return {
         label,
@@ -457,14 +465,24 @@ function rollingMetricMean(matches: AnalysisBundle["matches"], label: string, wi
   return rollingParamColumnMean(matches, column, window);
 }
 
+// Python 版 charts.py と同じ最小標本数（窓の半分、最低3）。窓が埋まるまでの不安定な点を描かない。
+function rollingMinPeriods(window: number): number {
+  return Math.max(3, Math.floor(window / 2));
+}
+
 function rollingParamColumnMean(matches: AnalysisBundle["matches"], column: string, window: number): Array<number | null> {
+  const minPeriods = rollingMinPeriods(window);
   if (!isDerivedMetricColumn(column)) {
-    return rollingMean(matches.map((match) => numberOrNull(match[column])), window);
+    return rollingMean(matches.map((match) => numberOrNull(match[column])), window, minPeriods);
   }
   return matches.map((_, index) => {
     const start = Math.max(0, index - window + 1);
+    const slice = matches.slice(start, index + 1);
+    if (slice.length < minPeriods) {
+      return null;
+    }
     try {
-      const params = calculateAverageParams(matches.slice(start, index + 1));
+      const params = calculateAverageParams(slice);
       return numberOrNull(params[column]);
     } catch {
       return null;
@@ -579,23 +597,25 @@ function buildTiebreak(tiebreak: Record<string, unknown>): ChartConfig {
 }
 
 function buildDurationWinRate(durationBins: Array<Record<string, unknown>>): ChartConfig {
-  const labels = durationBins.map((row) => String(row.label ?? labelRange(row)));
+  // Python版 chart_duration と同じ標本ゲート。図19・第11章の表と同じ帯だけを描く。
+  const rows = durationBins.filter((row) => (numberOrNull(row.n) ?? 0) >= DURATION_BIN_MIN_N);
+  const labels = rows.map((row) => String(row.label ?? labelRange(row)));
   return withRefLines({
     type: "bar",
     data: {
       labels,
       datasets: [
         {
-          ...lineDataset("ラウンド勝率", durationBins.map((row) => pctOrNull(row.win_rate)), WIN_COLOR),
+          ...lineDataset("ラウンド勝率", rows.map((row) => pctOrNull(row.win_rate)), WIN_COLOR),
           type: "line",
           pointRadius: 3,
           yAxisID: "y",
           $unit: "%",
-          $notes: nNotes(durationBins),
+          $notes: nNotes(rows),
           order: 0,
         },
         {
-          ...barDataset("ラウンド数", durationBins.map((row) => numberOrNull(row.n)), NEUTRAL_BAR_COLOR),
+          ...barDataset("ラウンド数", rows.map((row) => numberOrNull(row.n)), NEUTRAL_BAR_COLOR),
           yAxisID: "y2",
           order: 1,
         },
@@ -631,7 +651,7 @@ function buildScoreStates(scoreStates: Array<Record<string, unknown>>): ChartCon
 }
 
 function buildDurationDeltas(durationBins: Array<Record<string, unknown>>): ChartConfig {
-  const rows = durationBins.filter((row) => (numberOrNull(row.n) ?? 0) >= 20);
+  const rows = durationBins.filter((row) => (numberOrNull(row.n) ?? 0) >= DURATION_BIN_MIN_N);
   return withRefLines({
     type: "line",
     data: {
@@ -681,7 +701,7 @@ function buildStylePlane(matches: AnalysisBundle["matches"], plane: Record<strin
 }
 
 function buildRivals(rivals: Array<Record<string, unknown>>, anon: Anonymizer): ChartConfig {
-  const rows = rivals.slice(0, 12);
+  const rows = rivals.slice(0, RIVAL_CHART_ROWS);
   return withRefLines({
     type: "bar",
     data: {

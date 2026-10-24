@@ -877,7 +877,7 @@ def build_records(rounds: pd.DataFrame, matches: pd.DataFrame, summary_context: 
             row = valid.loc[valid[col].idxmax()]
             add(name, row[col], unit, row, "単マッチ平均")
 
-    single_round_note = "単ラウンドPRは切断・DQ・極短ラウンドの影響を受ける場合があります。"
+    single_round_note = "単ラウンドPRは切断・DQ・極短ラウンドの影響を受ける場合がある。"
     round_metrics = {
         "apm": ("単ラウンド最高APM", "APM"), "pps": ("単ラウンド最高PPS", "PPS"),
         "vs": ("単ラウンド最高VS", "VS"), "APP": ("単ラウンド最高APP", "APP"),

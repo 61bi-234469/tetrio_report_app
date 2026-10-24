@@ -133,6 +133,8 @@ function radarFillGradient(chart,color,alpha){
 function enhanceConfig(cfg){
   const o=cfg.options=cfg.options||{};
   const scales=o.scales||{};
+  // 軸の上限・下限ちょうどを通る線や点は既定のクリップで内側半分しか描かれないため、わずかなはみ出しを許す。
+  if(cfg.data&&cfg.data.datasets){cfg.data.datasets.forEach(function(ds){if(ds.clip===undefined)ds.clip=6;});}
   if(o.$signedRadar){cfg.data.datasets.forEach(function(ds){
     if(!ds.$fillColor)return;
     const col=ds.$fillColor,alpha=ds.$fillAlpha||.15;

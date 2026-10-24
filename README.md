@@ -74,12 +74,9 @@ Python版では、ツールが作る**①戦績レポート（本体）**に加�
 
 ### 旧版サンプルレポート
 
-旧Python版のサンプルは参考用です。新規利用はWeb版を推奨します。
+旧Python版のサンプルHTMLは配布していません。Python版には対戦相手の匿名化機能がなく、生成物に相手の実ハンドルがそのまま残るためです。出力イメージは匿名化済みの[Web版サンプル](https://htmlpreview.github.io/?https://github.com/61bi-234469/tetrio_report_app/blob/develop/samples/sample_web_report.html)で確認してください。章立てはWeb版と共通です。
 
-| レポート種別 | リンク |
-|---|---|
-| 旧Python版 ① 戦績レポート（本体） | [サンプルを見る](https://htmlpreview.github.io/?https://github.com/61bi-234469/tetrio_report_app/blob/develop/python/samples/sample_report.html) |
-| 旧Python版 ② AI考察レポート（別紙・Python版のみ） | [サンプルを見る](https://htmlpreview.github.io/?https://github.com/61bi-234469/tetrio_report_app/blob/develop/python/samples/sample_ai_report.html) |
+Python版を自分で動かして生成したレポートを共有する場合は、対戦相手のハンドルが本文・表・グラフ画像に含まれる点に注意してください。
 
 | | ① 戦績レポート（本体） | ② AI考察レポート（別紙） |
 |---|---|---|

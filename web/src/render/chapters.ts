@@ -23,7 +23,7 @@ export const CHAPTER_TITLES = [
   "連戦の流れとセッション内のマッチ位置",
   "リプレイ確認候補",
 ];
-export const ACTIVE_CHAPTER_NUMBERS = [1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
+export const ACTIVE_CHAPTER_NUMBERS = [1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 // 部（大セクション）。各タプルは [ローマ数字, 部名, 開始章番号]。
 export const PARTS: Array<[string, string, number]> = [
   ["Ⅰ", "全体像", 1],
@@ -32,7 +32,6 @@ export const PARTS: Array<[string, string, number]> = [
   ["Ⅳ", "対戦相手", 7],
   ["Ⅴ", "局面", 9],
   ["Ⅵ", "時間と連戦", 11],
-  ["Ⅶ", "振り返り", 13],
 ];
 const PART_AT = new Map<number, [string, string, number]>(
   PARTS.map(([roman, name, start], i) => [start, [roman, name, i + 1]]),
@@ -172,7 +171,7 @@ export function renderChapters(bundle: AnalysisBundle, anon: Anonymizer): string
   return [
     chapter1(ctx), chapter3(ctx), chapter4(ctx), chapter5(ctx), chapter6(ctx),
     chapter7(ctx), chapter8(ctx), chapter9(ctx), chapter10(ctx), chapter11(ctx),
-    chapter12(ctx), chapter13(ctx),
+    chapter12(ctx),
   ].join("");
 }
 
@@ -623,12 +622,12 @@ function chapter12(ctx: ChapterContext): string {
   return chapterSection(12, c12);
 }
 
-// 第13章 リプレイ確認候補
-function chapter13(ctx: ChapterContext): string {
-  const { s, anon } = ctx;
+// 付録D リプレイ確認候補（APIの統計値だけで選ぶため、本編ではなく付録に置く）
+export function renderReplayCandidates(bundle: AnalysisBundle, anon: Anonymizer): string {
+  const s = bundle.summary as any;
   const replayCandidates = (s.replay_candidates ?? []) as Array<Record<string, any>>;
   const topReplay = replayCandidates[0];
-  let c13 = chapterHeader(13, "リプレイ確認候補", "接戦の分岐点や普段と挙動が違ったラウンドを、リプレイで振り返る候補として並べる。各候補に見るポイントを付す。");
+  let c13 = "";
   if (replayCandidates.length) {
     const replayItems = replayCandidates.map((r) => {
       const opponent = tetrioProfileLink(r.opponent ?? r.opponent_id, r.opponent ?? r.opponent_id ?? "?", anon);
@@ -704,7 +703,7 @@ function chapter13(ctx: ChapterContext): string {
     ["replayExpiry", "replayNotInspected"],
     "条件×優先度で勝利・敗北それぞれ最大5件。削除済みも参考表示。",
   );
-  return chapterSection(13, c13);
+  return c13;
 }
 
 function chapterSection(number: number, inner: string): string {

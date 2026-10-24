@@ -1,5 +1,7 @@
 import type { AnalysisBundle } from "../analysis/types";
 import { htmlEscape } from "../utils";
+import type { Anonymizer } from "./anonymize";
+import { renderReplayCandidates } from "./chapters";
 import { type Cell, fig, recordsTableHtml, table } from "./components";
 import { nfmt, pct, pp, sgn } from "./format";
 
@@ -23,10 +25,11 @@ function excessTable(rows: Array<Record<string, any>>): string {
   });
 }
 
-export function renderAppendices(bundle: AnalysisBundle): string {
+export function renderAppendices(bundle: AnalysisBundle, anon: Anonymizer): string {
   const s = bundle.summary as any;
   const monthly = bundle.monthly as Array<Record<string, any>>;
   const records = (s.records ?? []) as Array<Record<string, any>>;
+  const replayCandidates = (s.replay_candidates ?? []) as Array<Record<string, any>>;
 
   const monthlyRows: Cell[][] = monthly.map((r) => [
     htmlEscape(String(r.month)),
@@ -83,6 +86,11 @@ export function renderAppendices(bundle: AnalysisBundle): string {
     `<h3>時間帯別の期待値調整後成績</h3>`,
     fig("22_excess_hour", "時間帯別の期待値調整後成績"),
     hourTable,
+    `</details>`,
+    `<details id="appendix-replay">`,
+    `<summary>付録D　リプレイ確認候補を開く（${replayCandidates.length}件）</summary>`,
+    `<p class="lead">接戦の分岐点や普段と挙動が違ったラウンドを、リプレイで振り返る候補として並べる。各候補に見るポイントを付す。候補の抽出はAPIの統計値・スコア・時間・勝敗のみに基づき、実際のプレイ内容（リプレイ映像・盤面・入力）は分析していない。</p>`,
+    renderReplayCandidates(bundle, anon),
     `</details>`,
   ].join("");
 }

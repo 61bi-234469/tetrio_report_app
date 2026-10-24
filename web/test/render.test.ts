@@ -45,15 +45,15 @@ describe("report document", () => {
       const matches = html.match(new RegExp(`id="${id}"`, "g")) ?? [];
       expect(matches, id).toHaveLength(1);
     }
-    // Python版と同じ章構成（第2章は廃止、有効章は1・3〜13）。
-    const ACTIVE = [1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
+    // 章構成（第2章は廃止、リプレイ確認候補は付録Dへ移動。有効章は1・3〜12）。
+    const ACTIVE = [1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
     for (const n of ACTIVE) {
       expect(html, `chapter ${n} heading`).toContain(`id="c${n}"`);
       expect(html, `chapter ${n} label`).toContain(`第${n}章`);
     }
     expect(html).not.toContain(`id="c2"`);
-    // 7つの部見出し。
-    for (const [roman] of [["Ⅰ"], ["Ⅱ"], ["Ⅲ"], ["Ⅳ"], ["Ⅴ"], ["Ⅵ"], ["Ⅶ"]]) {
+    // 6つの部見出し。
+    for (const [roman] of [["Ⅰ"], ["Ⅱ"], ["Ⅲ"], ["Ⅳ"], ["Ⅴ"], ["Ⅵ"]]) {
       expect(html, `part ${roman}`).toContain(`第${roman}部`);
     }
     // 定量ブロック（要点＋注意タグ＋任意の読み方）と注意事項カタログ。
@@ -74,10 +74,12 @@ describe("report document", () => {
     expect(html).toContain("リプレイ確認候補");
     expect(html).toContain('href="#note-replayNotInspected"');
     expect(html).toContain('id="note-replayNotInspected"');
-    // 付録A/B/C。
+    // 付録A/B/C/D（リプレイ確認候補は本編ではなく付録D）。
     expect(html).toContain('id="appendix-monthly"');
     expect(html).toContain('id="appendix-records"');
     expect(html).toContain('id="appendix-excess-grid"');
+    expect(html).toContain('id="appendix-replay"');
+    expect(html).not.toContain('id="c13"');
   });
 
   it("marks message pages as noindex", async () => {

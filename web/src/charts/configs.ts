@@ -176,9 +176,9 @@ export function buildChartConfigs(bundle: AnalysisBundle, anon: Anonymizer): Rec
     data: {
       labels: dateLabels,
       datasets: Object.entries(STYLE_COLORS).map(([style, color]) =>
-        lineDataset(style, rollingParamColumnMean(matches, style, 20), color)),
+        lineDataset(style, rollingParamColumnMean(matches, style, ROLLING_WINDOW), color)),
     },
-    options: baseOptions({ x: dateAxis(), y: axis("スタイル傾向（20マッチ平均）") }),
+    options: baseOptions({ x: dateAxis(), y: axis(`スタイル傾向（${ROLLING_WINDOW}マッチ平均）`) }),
   };
 
   // 21/22: 曜日・時間帯別の実績 vs 期待。
@@ -457,14 +457,24 @@ function rollingMetricMean(matches: AnalysisBundle["matches"], label: string, wi
   return rollingParamColumnMean(matches, column, window);
 }
 
+// Python 版 charts.py と同じ最小標本数（窓の半分、最低3）。窓が埋まるまでの不安定な点を描かない。
+function rollingMinPeriods(window: number): number {
+  return Math.max(3, Math.floor(window / 2));
+}
+
 function rollingParamColumnMean(matches: AnalysisBundle["matches"], column: string, window: number): Array<number | null> {
+  const minPeriods = rollingMinPeriods(window);
   if (!isDerivedMetricColumn(column)) {
-    return rollingMean(matches.map((match) => numberOrNull(match[column])), window);
+    return rollingMean(matches.map((match) => numberOrNull(match[column])), window, minPeriods);
   }
   return matches.map((_, index) => {
     const start = Math.max(0, index - window + 1);
+    const slice = matches.slice(start, index + 1);
+    if (slice.length < minPeriods) {
+      return null;
+    }
     try {
-      const params = calculateAverageParams(matches.slice(start, index + 1));
+      const params = calculateAverageParams(slice);
       return numberOrNull(params[column]);
     } catch {
       return null;

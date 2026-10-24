@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cohensD, mean, quantileBins, runLengths, std, wilsonInterval } from "../src/analysis/stats";
+import { cohensD, mean, quantileBins, rollingMean, runLengths, std, wilsonInterval } from "../src/analysis/stats";
 
 describe("stats primitives", () => {
   it("uses finite values and pandas-style sample std", () => {
@@ -23,6 +23,12 @@ describe("stats primitives", () => {
       wins: [2, 1],
       losses: [3],
     });
+  });
+
+  it("suppresses rolling means below the minimum sample count", () => {
+    expect(rollingMean([1, 2, 3, 4], 4, 3)).toEqual([null, null, 2, 2.5]);
+    expect(rollingMean([1, null, null, 4], 4, 3)).toEqual([null, null, null, null]);
+    expect(rollingMean([1, 2, 3], 2)).toEqual([1, 1.5, 2.5]);
   });
 
   it("drops duplicate quantile edges", () => {

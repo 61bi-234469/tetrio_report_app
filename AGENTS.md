@@ -41,6 +41,7 @@
 - Before reporting a `web/` change as verified, follow `.agents/skills/verify-web-report/SKILL.md` (run `npm run check`, then render the report in a real browser).
 - To push or release the web edition, follow `.agents/skills/deploy-web/SKILL.md` (develop auto-deploy via Actions; production via merge to `main` + `wrangler deploy`).
 - To refresh `samples/sample_web_report.html`, follow `.agents/skills/update-web-sample-report/SKILL.md`.
+- To get an independent review from a second model ("Sol", OpenAI `gpt-6.1-sol` driven through the Codex CLI), follow `.agents/skills/sol-review/SKILL.md`. Ask for one before deploying or pushing a large or risky change (metrics/analysis, renderer, the Worker, the Python pipeline, CI workflows, instruction files), and whenever the user asks for a Sol review. Briefs and logs go in the Git-ignored `docs/reviews/`.
 - If a skill's verification step cannot be completed in the current environment (e.g. no browser tooling), do not report the task as verified — state exactly which step was skipped and why, and record it so the next session can finish it.
 
 ## Git and Delivery Rules

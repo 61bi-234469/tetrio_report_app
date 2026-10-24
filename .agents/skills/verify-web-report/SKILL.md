@@ -68,7 +68,7 @@ exists. Never present `npm run check` alone as full verification of a visual cha
    - If a chart change was the point of the edit, confirm the expected chart ids exist in the DOM
      (e.g. `01_tr_history`, `29_session_decay`).
    - If the change touches responsive markup (some sections render a table on desktop but cards on
-     mobile, e.g. chapter 13's `rc-card`), check both a desktop width and a mobile width
+     mobile, e.g. chapter 12's `rc-card`), check both a desktop width and a mobile width
      (`preview_resize` or equivalent).
 5. If anything is wrong, read the relevant source under `web/src/`, fix it, let the client rebuild
    (`npm run build:client --prefix web`, or rerun `npm run dev`), reload the page, and re-check.

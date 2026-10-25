@@ -172,29 +172,6 @@ function placementResult(placement: Record<string, any>): string {
   return `${parts.join("、")}。順位を取得できたマッチは${n}件。`;
 }
 
-// PPS帯別の効率と勝率の要点。最遅帯と最速帯の差を定量で示す。
-function ppsEfficiencyResult(rows: Array<Record<string, any>>): string {
-  if (rows.length < 2) {
-    return "PPS帯別の集計に十分な標本なし。";
-  }
-  const slow = rows[0]!;
-  const fast = rows[rows.length - 1]!;
-  const slowApp = toNumber(slow.APP);
-  const fastApp = toNumber(fast.APP);
-  const appText = slowApp !== null && fastApp !== null
-    ? `APPは${nfmt(slowApp, 3)}→${nfmt(fastApp, 3)}（${sgn(fastApp - slowApp, 3)}）`
-    : "APPの比較不可";
-  const slowWin = toNumber(slow.win_rate);
-  const fastWin = toNumber(fast.win_rate);
-  const winText = slowWin !== null && fastWin !== null
-    ? `実績勝率は${pct(slowWin)}→${pct(fastWin)}（${pp(fastWin - slowWin)}）`
-    : "実績勝率の比較不可";
-  const scored = rows.filter((row) => toNumber(row.win_rate) !== null);
-  const best = scored.length ? maxBy(scored, (row) => toNumber(row.win_rate) ?? -1)! : null;
-  const head = `最遅帯${htmlEscape(String(slow.label))}から最速帯${htmlEscape(String(fast.label))}で、${appText}、${winText}。`;
-  return best ? `${head}実績勝率が最も高い帯は${htmlEscape(String(best.label))}で${pct(best.win_rate)}（n=${best.n}）。` : head;
-}
-
 // TR収支の要点。avg_loss は負値のまま持つため符号をそのまま出す。
 function trLedgerResult(ledger: Record<string, any>): string {
   const n = toNumber(ledger.n) ?? 0;
@@ -431,32 +408,6 @@ function chapter5(ctx: ChapterContext): string {
       : "PPS・VS分類を集計不可。",
     ["cohortBias", "glickoMissing"],
     "散布図=相対PPS差×相対VS差の勝敗。4分類の実績/期待/期待超過。期待対象はGlicko/RD欠損を除く。",
-  );
-  const ppsBins = (s.pps_bins ?? []) as Array<Record<string, any>>;
-  c5 += "<h3>PPS帯別の効率と勝率（マッチ単位）</h3>" + grain("マッチ単位。自分のPPSを6分位に分け、帯ごとの効率指標と勝率を見る。");
-  c5 += fig("30_pps_efficiency", "PPS帯別の効率と勝率");
-  if (ppsBins.length) {
-    c5 += table(
-      ["PPS帯", "試合数", "期待対象", "PPS", "APP", "GbE", "Area", "実績勝率", "期待勝率", "期待超過"],
-      ppsBins.map((row) => [
-        htmlEscape(String(row.label)),
-        row.n,
-        row.expected_n,
-        metricFmt("PPS", row.pps),
-        metricFmt("APP", row.APP),
-        metricFmt("Garbage Eff.", row.GbE),
-        metricFmt("Area", row.Area),
-        pct(row.win_rate),
-        pct(row.expected),
-        pp(row.excess),
-      ]),
-      { minWidth: 940, showDirection: false, mobileColumns: [0, 1, 7, 9] },
-    );
-  }
-  c5 += block(
-    ppsEfficiencyResult(ppsBins),
-    ["binBoundary", "posthocMetric", "cohortBias", "smallSample", "glickoMissing"],
-    "棒=実績勝率・破線=期待勝率（左軸）、線=APP・GbE（右軸）。実績勝率は全試合、期待勝率と期待超過は期待対象のみ。Areaは桁が異なるため表のみ。",
   );
   return chapterSection(5, c5);
 }

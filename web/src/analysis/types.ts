@@ -134,7 +134,6 @@ export interface Summary {
   duration_bins: Array<Record<string, unknown>>;
   duration_by_result: Record<string, unknown>;
   score_states: Array<Record<string, unknown>>;
-  pps_bins: Array<Record<string, unknown>>;
   records: Array<Record<string, unknown>>;
   rank_journey: Record<string, unknown>;
   placement: Record<string, unknown>;

@@ -122,7 +122,6 @@ describe.skipIf(!existsSync(pythonExe))("python golden comparison", () => {
     closeFields(tsa.duration_by_result.win, py.duration_by_result.win, ["n", "mean", "median", "p75"]);
     closeFields(tsa.duration_by_result.loss, py.duration_by_result.loss, ["n", "mean", "median", "p75"]);
     closeRows(ts.score_states, py.score_states, ["n", "win_rate", "expected", "excess", "score_diff_mean"]);
-    closeRows(ts.pps_bins, py.pps_bins, ["n", "pps", "win_rate", "expected"]);
     closeStyleSummary(ts.styles, py.styles);
     closeStyleSummary(ts.styles_recent, py.styles_recent);
     expect(ts.session_decay.map((row) => row.label)).toEqual(py.session_decay.map((row: any) => row.label));

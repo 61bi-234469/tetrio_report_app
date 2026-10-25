@@ -56,7 +56,6 @@ export const CHART_IDS = [
   "27_rivals",
   "28_comeback",
   "29_session_decay",
-  "30_pps_efficiency",
   "31_placement_history",
   "32_tr_ledger",
 ] as const;
@@ -209,12 +208,6 @@ export function buildChartConfigs(bundle: AnalysisBundle, anon: Anonymizer): Rec
   // 29: セッション内の失速曲線（勝率棒＋1マッチ目=100の能力4本線）。
   configs["29_session_decay"] = buildSessionDecay(summary.session_decay as Array<Record<string, unknown>>);
 
-  // 30: PPS帯別の勝率と効率指標（速度を上げたときにAPP・GbEがどう動くか）。
-  const ppsBins = summary.pps_bins as Array<Record<string, unknown>>;
-  if (ppsBins.length) {
-    configs["30_pps_efficiency"] = buildPpsEfficiency(ppsBins);
-  }
-
   // 31: 世界順位の推移（順位が取れたマッチがある場合のみ）。
   const placement = summary.placement as Record<string, unknown>;
   if ((numberOrNull(placement.n) ?? 0) > 0) {
@@ -228,64 +221,6 @@ export function buildChartConfigs(bundle: AnalysisBundle, anon: Anonymizer): Rec
   }
 
   return configs;
-}
-
-// pctOrNull は finiteNumber 経由のため null を 0% として描いてしまう。
-// 欠損を線の切れ目・棒の非表示として残したい追加チャートではこちらを使う。
-function pctOrMissing(value: unknown): number | null {
-  const parsed = toNumber(value);
-  return parsed === null ? null : round2(parsed * 100);
-}
-
-// 30: PPS分位帯ごとの勝率（棒・左軸%）と効率指標（線・右軸）。
-// Area は桁が違い同じ軸に乗らないため第5章の表だけで扱う。
-function buildPpsEfficiency(ppsBins: Array<Record<string, unknown>>): ChartConfig {
-  const labels = ppsBins.map((row) => String(row.label ?? labelRange(row)));
-  const notes = nNotes(ppsBins);
-  return withRefLines({
-    type: "bar",
-    data: {
-      labels,
-      datasets: [
-        {
-          ...lineDataset("期待勝率", ppsBins.map((row) => pctOrMissing(row.expected)), EXPECTED_COLOR),
-          type: "line",
-          pointRadius: 3,
-          borderDash: [6, 4],
-          yAxisID: "y",
-          $unit: "%",
-          $notes: notes,
-          order: 0,
-        },
-        {
-          ...lineDataset("APP", ppsBins.map((row) => toNumber(row.APP)), METRIC_COLORS.APP ?? PRIMARY_COLOR),
-          type: "line",
-          pointRadius: 3,
-          yAxisID: "y2",
-          order: 0,
-        },
-        {
-          ...lineDataset("GbE", ppsBins.map((row) => toNumber(row.GbE)), METRIC_COLORS["Garbage Eff."] ?? PRIMARY_COLOR),
-          type: "line",
-          pointRadius: 3,
-          yAxisID: "y2",
-          order: 0,
-        },
-        {
-          ...barDataset("実績勝率", ppsBins.map((row) => pctOrMissing(row.win_rate)), WIN_COLOR),
-          yAxisID: "y",
-          $unit: "%",
-          $notes: notes,
-          order: 1,
-        },
-      ],
-    },
-    options: baseOptions({
-      x: axis("PPS帯（分位）"),
-      y: pctAxis("勝率（%）"),
-      y2: y2Axis("APP / GbE"),
-    }),
-  }, [{ y: 50, axis: "y" }]);
 }
 
 // 31: 世界順位の推移。順位は小さいほど上位なのでy軸を反転する。

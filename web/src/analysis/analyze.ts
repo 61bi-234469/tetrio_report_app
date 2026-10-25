@@ -207,7 +207,6 @@ export function analyzeReport(roundRows: RoundRow[], options: AnalyzeOptions): A
     duration_bins: buildDurationBins(eligibleRounds),
     duration_by_result: buildDurationByResult(eligibleRounds),
     score_states: scoreStates,
-    pps_bins: buildPpsBins(completed),
     records,
     rank_journey: buildRankJourney(completed),
     placement: buildPlacementJourney(completed),
@@ -1333,26 +1332,6 @@ function buildExcessBreakdown(
       d_area: diffMean(group, "Area", base.Area),
     };
   }).filter((row) => row.n > 0);
-}
-
-function buildPpsBins(matches: MatchRow[]): Array<Record<string, unknown>> {
-  return quantileBins(matches.map((match) => toNumber(match.pps)), 6).map((bin) => {
-    const group = bin.indices.map((index) => matches[index]).filter((match): match is MatchRow => Boolean(match));
-    const derived = averageParamsOrNull(group, "", "");
-    return {
-      label: `${bin.low.toFixed(2)}..${bin.high.toFixed(2)}`,
-      n: group.length,
-      pps: mean(group.map((match) => match.pps)),
-      APP: aggregateMetricMean(group, "APP", derived),
-      GbE: aggregateMetricMean(group, "Garbage Effi.", derived),
-      Area: aggregateMetricMean(group, "Area", derived),
-      win_rate: groupWinRate(group),
-      expected: mean(group.map((match) => match.expected_win)),
-      // 期待勝率はGlicko/RD欠損マッチを含められない。期待超過は実績も同じ部分集合で取り直す。
-      expected_n: group.filter((match) => toNumber(match.expected_win) !== null).length,
-      excess: expectedExcess(group),
-    };
-  });
 }
 
 function buildRankJourney(matches: MatchRow[]): Record<string, unknown> {

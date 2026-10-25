@@ -690,7 +690,8 @@ function buildScoreStateRounds(rounds: RoundRow[], matches: MatchRow[]): Array<R
   });
 }
 
-// 相手TR差の帯。図12（実績vs期待）と第7章のTR収支で同じ境界・ラベルを共有する。
+// 相手TR差の帯（図12専用の絶対値境界）。「格上・同格・格下」という読者の語彙に対応させるため
+// 固定値を使う。TR収支は同じ境界だと上位ランクで1〜2帯に潰れるため分位ビンを使う（buildTrLedger）。
 const TR_GAP_EDGES = [-Infinity, -2000, -1000, -500, 0, 500, 1000, 2000, Infinity];
 const TR_GAP_LABELS = ["≤-2000", "-2000~-1000", "-1000~-500", "-500~0", "0~500", "500~1000", "1000~2000", "≥2000"];
 
@@ -754,14 +755,52 @@ function trLedgerTotals(matches: MatchRow[]): Record<string, unknown> {
   };
 }
 
-// TR収支。全体と相手TR差の帯別。期待勝率は使わないためGlicko欠損マッチも対象に含む。
+// TR収支の帯数。相手TR差の分位で切るため、帯の数と各帯の標本数がランクに依存しない。
+const TR_LEDGER_BIN_COUNT = 6;
+// 帯のTR増減が「読めない」しきい値。レポートは増減を小数1桁で出すため、
+// 勝ち時・負け時・1マッチ平均のどれもこれを下回る帯は全セルが ±0.0 になり、行として情報が無い。
+// 上位ランクでは格下相手の増減が0または0.0x に張り付くため、厳密な0では捕まらない。
+const TR_DELTA_DISPLAY_EPSILON = 0.05;
+
+// TR収支。全体と相手TR差の分位帯別。期待勝率は使わないためGlicko欠損マッチも対象に含む。
+// 格下相手でTRがほぼ動かない帯（上位ランクで発生する）は読む情報が無いため bands から外し、
+// 件数だけ suppressed_* に残す。
 function buildTrLedger(matches: MatchRow[]): Record<string, unknown> {
+  const eligible = matches.filter((match) => toNumber(match.tr_diff) !== null && matchTrDelta(match) !== null);
+  const gaps = eligible.map((match) => toNumber(match.tr_diff) ?? 0);
+  const bins = quantileBins(gaps, TR_LEDGER_BIN_COUNT).map((bin) => ({
+    low: bin.low,
+    high: bin.high,
+    group: bin.indices.map((index) => eligible[index]).filter((match): match is MatchRow => Boolean(match)),
+  }));
+  // 全マッチのTR差が同値だと分位境界が重複し quantileBins は帯を返さない。
+  // 帯を1本も出さずに黙って消すのではなく、全体を1帯にまとめて通常の判定にかける。
+  const groups = bins.length || !eligible.length
+    ? bins
+    : [{ low: Math.min(...gaps), high: Math.max(...gaps), group: eligible }];
+  const binned = groups.map(({ low, high, group }) => {
+    const totals = trLedgerTotals(group);
+    // 平均絶対増減で判定すると、ほぼ0の勝ちが多数ある帯に紛れた大きな敗北を潰してしまう。
+    // 表に出る3つの平均のいずれかが読める値を持つなら残す。
+    const readable = [totals.avg_gain, totals.avg_loss, totals.net_per_match]
+      .some((value) => value !== null && Math.abs(Number(value)) >= TR_DELTA_DISPLAY_EPSILON);
+    return {
+      size: group.length,
+      flat: !readable,
+      row: {
+        label: `${Math.round(low)}~${Math.round(high)}`,
+        low,
+        high,
+        ...totals,
+      },
+    };
+  });
+  const suppressed = binned.filter((band) => band.flat);
   return {
     ...trLedgerTotals(matches),
-    bands: trGapBands(matches, (match) => matchTrDelta(match) !== null).map(({ label, group }) => ({
-      label,
-      ...trLedgerTotals(group),
-    })),
+    bands: binned.filter((band) => !band.flat).map((band) => band.row),
+    suppressed_bands: suppressed.length,
+    suppressed_matches: suppressed.reduce((sum, band) => sum + band.size, 0),
   };
 }
 

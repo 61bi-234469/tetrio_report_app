@@ -6,8 +6,8 @@ import type { DataRow, RoundRow } from "../src/analysis/types";
 
 const OPTS = {
   username: "your_username",
-  maxMatches: 6,
-  recordsCount: 6,
+  maxMatches: 12,
+  recordsCount: 12,
   fetchedAt: "2026-01-01T00:00:00.000Z",
 };
 
@@ -55,42 +55,127 @@ describe("TR ledger", () => {
     expect(bundle.summary.tr_ledger.avg_loss).toBeNull();
   });
 
-  it("bands the ledger by the TR gap, including matches the expected-win table excludes", () => {
+  it("keeps matches the expected-win table excludes", () => {
     const bundle = analyzeReport([
-      // 相手TRが自分より600低い＝帯「500~1000」。Glicko欠損のため期待勝率は算出されない。
+      // Glicko欠損のため期待勝率は算出されないが、TRは動いている。
       round({ match: 1, result: "win", trDelta: 20, opponentTrBefore: 14400, glicko: false }),
       round({ match: 2, result: "loss", trDelta: -15, opponentTrBefore: 14400, glicko: false }),
-      // 相手TRが自分より100高い＝帯「-500~0」。
       round({ match: 3, result: "win", trDelta: 25, opponentTrBefore: 15100 }),
     ], OPTS);
 
-    const bands = bundle.summary.tr_ledger.bands as Array<Record<string, unknown>>;
-    const byLabel = new Map(bands.map((band) => [band.label, band]));
-    expect([...byLabel.keys()]).toEqual(["-500~0", "500~1000"]);
-    expect(byLabel.get("500~1000")?.n).toBe(2);
-    expect(byLabel.get("500~1000")?.net).toBe(5);
-    expect(byLabel.get("-500~0")?.net_per_match).toBe(25);
+    // 収支は期待勝率を使わないため3件すべて対象。
+    expect(bundle.summary.tr_ledger.n).toBe(3);
+    expect(bundle.summary.tr_ledger.net).toBe(30);
+    // 期待勝率を使う tr_gap はGlicko欠損マッチを落とす。
+    expect(bundle.summary.tr_gap.map((row) => row.n)).toEqual([1]);
+  });
 
-    // 期待勝率を使う tr_gap はGlicko欠損マッチを落とすため、同じ帯を持たない。
-    const gapLabels = bundle.summary.tr_gap.map((row) => row.label);
-    expect(gapLabels).toEqual(["-500~0"]);
+  it("bands by the quantiles of the TR gap actually faced", () => {
+    const bundle = analyzeReport(spreadRounds(), OPTS);
+
+    const bands = bundle.summary.tr_ledger.bands as Array<Record<string, unknown>>;
+    expect(bands.length).toBeGreaterThan(1);
+    // ラベルは分位境界。固定の ±500/1000/2000 ではない。
+    for (const band of bands) {
+      expect(String(band.label)).toMatch(/^-?\d+~-?\d+$/);
+      expect(Number(band.low)).toBeLessThanOrEqual(Number(band.high));
+    }
+    // 帯は相手TR差の昇順。
+    const lows = bands.map((band) => Number(band.low));
+    expect([...lows].sort((a, b) => a - b)).toEqual(lows);
+    // 全帯の合計が全体と一致する（抑制帯が無い場合）。
+    expect(bands.reduce((sum, band) => sum + Number(band.n), 0)).toBe(bundle.summary.tr_ledger.n);
+  });
+
+  // 上位ランクでは格下相手の増減が厳密な0ではなく0.0xに張り付く。表示は小数1桁なので
+  // 全セルが ±0.0 になり読めない。「増減が全て0」という判定では捕まらない形。
+  it("suppresses bands whose TR movement is too small to read, not just exact zeros", () => {
+    const bundle = analyzeReport(Array.from({ length: 12 }, (_, index) => {
+      const gap = (index + 1) * 100;
+      const frozen = gap >= 700;
+      return round({
+        match: index + 1,
+        result: frozen || index % 2 === 0 ? "win" : "loss",
+        trDelta: frozen ? 0.02 : (index % 2 === 0 ? 20 : -15),
+        opponentTrBefore: 15000 - gap,
+      });
+    }), { ...OPTS, maxMatches: 12, recordsCount: 12 });
+
+    const ledger = bundle.summary.tr_ledger;
+    const bands = ledger.bands as Array<Record<string, unknown>>;
+    expect(ledger.n).toBe(12);
+    expect(ledger.suppressed_bands).toBeGreaterThan(0);
+    expect(ledger.suppressed_matches).toBe(6);
+    // 落とした帯の増減は0ではない。合計には残る。
+    expect(Number(ledger.net)).toBeCloseTo(6 * 0.02 + 3 * 20 - 3 * 15, 6);
+    // 残った帯は読める増減を持つ。
+    expect(bands.reduce((sum, band) => sum + Number(band.n), 0)).toBe(6);
+    expect(bands.every((band) => Math.abs(Number(band.net_per_match)) >= 0.05)).toBe(true);
+
+    // 抑制した帯はチャートにも出ない。
+    const chart = buildChartConfigs(bundle, createAnonymizer(false))["32_tr_ledger"];
+    expect(chart.data.labels).toEqual(bands.map((band) => band.label));
   });
 
   it("leaves the gain bar missing instead of zero for a band with no wins", () => {
-    const bundle = analyzeReport([
-      // 帯「500~1000」は敗北1件のみ＝勝ち時平均は存在しない。
-      round({ match: 1, result: "loss", trDelta: -15, opponentTrBefore: 14400 }),
-      round({ match: 2, result: "win", trDelta: 25, opponentTrBefore: 15100 }),
-    ], OPTS);
-
+    const bundle = analyzeReport(spreadRounds(), OPTS);
     const chart = buildChartConfigs(bundle, createAnonymizer(false))["32_tr_ledger"];
-    const index = (chart.data.labels ?? []).indexOf("500~1000");
+    const bands = bundle.summary.tr_ledger.bands as Array<Record<string, unknown>>;
+    const index = bands.findIndex((band) => Number(band.wins) === 0);
     expect(index).toBeGreaterThan(-1);
+
     const gain = chart.data.datasets.find((dataset) => dataset.label === "勝ち時の平均増減")!;
     expect((gain.data as Array<number | null>)[index]).toBeNull();
     const loss = chart.data.datasets.find((dataset) => dataset.label === "負け時の平均増減")!;
-    expect((loss.data as Array<number | null>)[index]).toBe(-15);
+    expect((loss.data as Array<number | null>)[index]).not.toBeNull();
   });
+
+  // ほぼ0の勝ちに紛れた1件の大きな敗北。帯の平均絶対増減は 8.166/167 ≒ 0.049 で
+  // しきい値0.05を下回るため、平均で判定すると読める -8.0TR ごと消える。
+  it("keeps a band whose loss average is readable even when its wins are near zero", () => {
+    const total = 167;
+    const rounds = Array.from({ length: total }, (_, index) => round({
+      match: index + 1,
+      result: index === total - 1 ? "loss" : "win",
+      trDelta: index === total - 1 ? -8 : 0.001,
+      // TR差を同値にして1帯へ寄せる。
+      opponentTrBefore: 14900,
+    }));
+    const bundle = analyzeReport(rounds, { ...OPTS, maxMatches: total, recordsCount: total });
+
+    const bands = bundle.summary.tr_ledger.bands as Array<Record<string, unknown>>;
+    expect(bands).toHaveLength(1);
+    expect(Number(bands[0]!.losses)).toBe(1);
+    expect(Number(bands[0]!.avg_loss)).toBeCloseTo(-8, 6);
+    expect(bundle.summary.tr_ledger.suppressed_bands).toBe(0);
+  });
+
+  // TR差が全件同値だと quantileBins は帯を返さない。黙って表とチャートが消えないこと。
+  it("falls back to a single band when every TR gap is identical", () => {
+    const bundle = analyzeReport(Array.from({ length: 12 }, (_, index) => round({
+      match: index + 1,
+      result: index % 2 === 0 ? "win" : "loss",
+      trDelta: index % 2 === 0 ? 20 : -15,
+      opponentTrBefore: 14900,
+    })), { ...OPTS, maxMatches: 12, recordsCount: 12 });
+
+    const ledger = bundle.summary.tr_ledger;
+    const bands = ledger.bands as Array<Record<string, unknown>>;
+    expect(bands).toHaveLength(1);
+    expect(Number(bands[0]!.n)).toBe(12);
+    expect(Number(bands[0]!.net)).toBe(ledger.net);
+    expect(ledger.suppressed_bands).toBe(0);
+  });
+
+  // 相手TR差を散らし、最も格上寄りの帯だけ全敗にする。
+  function spreadRounds(): RoundRow[] {
+    return Array.from({ length: 12 }, (_, index) => round({
+      match: index + 1,
+      result: index < 2 ? "loss" : (index % 2 === 0 ? "win" : "loss"),
+      trDelta: index < 2 ? -30 : (index % 2 === 0 ? 20 : -15),
+      opponentTrBefore: 15000 + 600 - index * 100,
+    }));
+  }
 });
 
 interface RoundSpec {

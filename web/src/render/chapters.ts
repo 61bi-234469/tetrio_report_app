@@ -217,6 +217,11 @@ function trLedgerResult(ledger: Record<string, any>): string {
       `${scope}収支が最も良いのは${htmlEscape(String(best.label))}で1マッチ${sgn(best.net_per_match, 1)}TR（n=${best.n}）、最も悪いのは${htmlEscape(String(worst.label))}で${sgn(worst.net_per_match, 1)}TR（n=${worst.n}）`,
     );
   }
+  // 上位ランクでは格下相手にTRが動かない帯が出る。落とした事実は数で残す。
+  const suppressedBands = toNumber(ledger.suppressed_bands) ?? 0;
+  if (suppressedBands > 0) {
+    parts.push(`TR増減が実質0の帯${suppressedBands}本・${toNumber(ledger.suppressed_matches) ?? 0}マッチは非表示`);
+  }
   return `${parts.join("。")}。`;
 }
 
@@ -503,7 +508,7 @@ function chapter7(ctx: ChapterContext): string {
   );
   const ledger = (s.tr_ledger ?? {}) as Record<string, any>;
   const ledgerBands = (ledger.bands ?? []) as Array<Record<string, any>>;
-  c7 += "<h3>TR収支の内訳</h3>" + grain("マッチ単位。相手TR差の帯ごとに、勝ち時・負け時のTR増減と1マッチ平均の純収支を見る。");
+  c7 += "<h3>TR収支の内訳</h3>" + grain("マッチ単位。相手TR差の分位帯ごとに、勝ち時・負け時のTR増減と1マッチ平均の純収支を見る。");
   c7 += fig("32_tr_ledger", "TR差帯別のTR収支");
   if (ledgerBands.length) {
     c7 += table(
@@ -523,8 +528,8 @@ function chapter7(ctx: ChapterContext): string {
   }
   c7 += block(
     trLedgerResult(ledger),
-    ["cohortBias", "dqIncluded", "smallSample"],
-    "棒=勝ち時・負け時の平均TR増減、線=1マッチ平均の純収支。0線より上なら収支プラス。",
+    ["binBoundary", "cohortBias", "dqIncluded", "smallSample"],
+    "棒=勝ち時・負け時の平均TR増減、線=1マッチ平均の純収支。0線より上なら収支プラス。帯は相手TR差の分位で、TR増減が実質0の帯は非表示。",
   );
   return chapterSection(7, c7);
 }

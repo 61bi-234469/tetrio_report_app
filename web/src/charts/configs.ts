@@ -345,7 +345,7 @@ function buildTrLedgerChart(bands: Array<Record<string, unknown>>): ChartConfig 
         },
       ],
     },
-    options: baseOptions({ x: axis("自分TR − 相手TR"), y: axis("TR増減") }),
+    options: baseOptions({ x: axis("自分TR − 相手TR（分位）"), y: axis("TR増減") }),
   }, [{ y: 0, axis: "y", color: "#475569", dash: [] }]);
 }
 

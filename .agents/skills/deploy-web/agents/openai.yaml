@@ -1,0 +1,4 @@
+interface:
+  display_name: "Deploy Web Edition"
+  short_description: "Push develop or release web/ to production Workers"
+  default_prompt: "Use $deploy-web to push develop and confirm the develop Worker deploy."

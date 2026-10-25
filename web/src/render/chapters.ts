@@ -2,7 +2,8 @@ import type { AnalysisBundle } from "../analysis/types";
 import { ABILITY_METRIC_COLUMNS } from "../analysis/enrich";
 import { STYLE_ORDER } from "../analysis/model";
 import { TR_BAND_WINDOW, trBandSeries } from "../analysis/tr-band";
-import { htmlEscape, finiteNumber as num } from "../utils";
+// num(=finiteNumber) は null を 0 に落とすため、欠損と0を区別する箇所では toNumber を使う。
+import { htmlEscape, finiteNumber as num, toNumber } from "../utils";
 import type { Anonymizer } from "./anonymize";
 import { advantageTable, block, fig, grain, table } from "./components";
 import { metricFmt, nfmt, pct, pp, sgn } from "./format";
@@ -151,6 +152,74 @@ function trMonthlyBandResult(matches: AnalysisBundle["matches"]): string {
   return `直近${Math.min(TR_BAND_WINDOW, band.count)}マッチ窓のP50は${nfmt(p50, 0, true)}、P10-P90幅は${nfmt(p90 - p10, 0, true)}。`;
 }
 
+// 世界順位の要点。順位は小さいほど上位で、取得できたマッチが無い場合もある。
+function placementResult(placement: Record<string, any>): string {
+  const n = toNumber(placement.n) ?? 0;
+  if (!n) {
+    return "世界順位を取得できたマッチなし。";
+  }
+  const parts = [
+    `現在${nfmt(placement.current, 0, true)}位`,
+    `最高${nfmt(placement.best, 0, true)}位（${dateText(placement.best_date)}）`,
+    `最低${nfmt(placement.worst, 0, true)}位（${dateText(placement.worst_date)}）`,
+  ];
+  const change = toNumber(placement.change);
+  if (change !== null && change !== 0) {
+    parts.push(`期間中に${nfmt(Math.abs(change), 0, true)}位${change > 0 ? "上昇" : "下降"}`);
+  } else if (change === 0) {
+    parts.push("期間中の順位変化なし");
+  }
+  return `${parts.join("、")}。順位を取得できたマッチは${n}件。`;
+}
+
+// PPS帯別の効率と勝率の要点。最遅帯と最速帯の差を定量で示す。
+function ppsEfficiencyResult(rows: Array<Record<string, any>>): string {
+  if (rows.length < 2) {
+    return "PPS帯別の集計に十分な標本なし。";
+  }
+  const slow = rows[0]!;
+  const fast = rows[rows.length - 1]!;
+  const slowApp = toNumber(slow.APP);
+  const fastApp = toNumber(fast.APP);
+  const appText = slowApp !== null && fastApp !== null
+    ? `APPは${nfmt(slowApp, 3)}→${nfmt(fastApp, 3)}（${sgn(fastApp - slowApp, 3)}）`
+    : "APPの比較不可";
+  const slowWin = toNumber(slow.win_rate);
+  const fastWin = toNumber(fast.win_rate);
+  const winText = slowWin !== null && fastWin !== null
+    ? `実績勝率は${pct(slowWin)}→${pct(fastWin)}（${pp(fastWin - slowWin)}）`
+    : "実績勝率の比較不可";
+  const scored = rows.filter((row) => toNumber(row.win_rate) !== null);
+  const best = scored.length ? maxBy(scored, (row) => toNumber(row.win_rate) ?? -1)! : null;
+  const head = `最遅帯${htmlEscape(String(slow.label))}から最速帯${htmlEscape(String(fast.label))}で、${appText}、${winText}。`;
+  return best ? `${head}実績勝率が最も高い帯は${htmlEscape(String(best.label))}で${pct(best.win_rate)}（n=${best.n}）。` : head;
+}
+
+// TR収支の要点。avg_loss は負値のまま持つため符号をそのまま出す。
+function trLedgerResult(ledger: Record<string, any>): string {
+  const n = toNumber(ledger.n) ?? 0;
+  if (!n) {
+    return "TR増減を取得できたマッチなし。";
+  }
+  const parts = [
+    `1勝あたり平均${sgn(ledger.avg_gain, 1)}TR、1敗あたり平均${sgn(ledger.avg_loss, 1)}TR、1マッチ平均${sgn(ledger.net_per_match, 1)}TR（${n}マッチ・合計${sgn(ledger.net, 0)}TR）`,
+  ];
+  const bands = (ledger.bands ?? []) as Array<Record<string, any>>;
+  const reliable = bands.filter((row) => (toNumber(row.n) ?? 0) >= 20);
+  const pool = reliable.length ? reliable : bands;
+  const scored = pool.filter((row) => toNumber(row.net_per_match) !== null);
+  if (scored.length >= 2) {
+    const best = maxBy(scored, (row) => toNumber(row.net_per_match) ?? -Infinity)!;
+    const worst = minBy(scored, (row) => toNumber(row.net_per_match) ?? Infinity)!;
+    // 第7章の期待超過と同じ標本ゲート。表には全帯を出すため、どの範囲で比べたかを明示する。
+    const scope = reliable.length ? "標本20以上の帯では" : "全帯では";
+    parts.push(
+      `${scope}収支が最も良いのは${htmlEscape(String(best.label))}で1マッチ${sgn(best.net_per_match, 1)}TR（n=${best.n}）、最も悪いのは${htmlEscape(String(worst.label))}で${sgn(worst.net_per_match, 1)}TR（n=${worst.n}）`,
+    );
+  }
+  return `${parts.join("。")}。`;
+}
+
 interface ChapterContext {
   bundle: AnalysisBundle;
   s: any;               // bundle.summary（既存コードの `as any` を維持）
@@ -208,6 +277,12 @@ function chapter1(ctx: ChapterContext): string {
     `確認できる最初のTRは${nfmt(kpi.first_tr, 0, true)}、現在は${nfmt(kpi.current_tr, 0, true)}、差は${nfmt(kpi.tr_change, 0, true)}。ピークは${nfmt(kpi.peak_tr, 0, true)}（${dateText(kpi.peak_date)}、現在はここから${nfmt(peakGap, 0)}）、最大ドローダウンは${nfmt(kpi.max_drawdown, 0, true)}。${rankSentence}`,
     ["cohortBias", "dqIncluded"],
     "縦軸TR・Est. TR。ランク切替点に新ランクを表示。",
+  );
+  c1 += "<h3>世界順位の推移</h3>" + grain("マッチ単位。各マッチ後のTETRA LEAGUE世界順位。") + fig("31_placement_history", "世界順位の推移");
+  c1 += block(
+    placementResult(s.placement ?? {}),
+    ["placementScope", "dqIncluded"],
+    "縦軸=世界順位。1位を上にするため軸を反転。",
   );
   c1 += "<h3>直近窓別の実績 vs 期待</h3>" + table(["期間", "勝数", "実績", "期待", "期待対象", "期待超過", "超過勝数"], windowRows, { mobileColumns: [0, 2, 3, 5] });
   c1 += block(
@@ -352,6 +427,32 @@ function chapter5(ctx: ChapterContext): string {
     ["cohortBias", "glickoMissing"],
     "散布図=相対PPS差×相対VS差の勝敗。4分類の実績/期待/期待超過。期待対象はGlicko/RD欠損を除く。",
   );
+  const ppsBins = (s.pps_bins ?? []) as Array<Record<string, any>>;
+  c5 += "<h3>PPS帯別の効率と勝率（マッチ単位）</h3>" + grain("マッチ単位。自分のPPSを6分位に分け、帯ごとの効率指標と勝率を見る。");
+  c5 += fig("30_pps_efficiency", "PPS帯別の効率と勝率");
+  if (ppsBins.length) {
+    c5 += table(
+      ["PPS帯", "試合数", "期待対象", "PPS", "APP", "GbE", "Area", "実績勝率", "期待勝率", "期待超過"],
+      ppsBins.map((row) => [
+        htmlEscape(String(row.label)),
+        row.n,
+        row.expected_n,
+        metricFmt("PPS", row.pps),
+        metricFmt("APP", row.APP),
+        metricFmt("Garbage Eff.", row.GbE),
+        metricFmt("Area", row.Area),
+        pct(row.win_rate),
+        pct(row.expected),
+        pp(row.excess),
+      ]),
+      { minWidth: 940, showDirection: false, mobileColumns: [0, 1, 7, 9] },
+    );
+  }
+  c5 += block(
+    ppsEfficiencyResult(ppsBins),
+    ["binBoundary", "posthocMetric", "cohortBias", "smallSample", "glickoMissing"],
+    "棒=実績勝率・破線=期待勝率（左軸）、線=APP・GbE（右軸）。実績勝率は全試合、期待勝率と期待超過は期待対象のみ。Areaは桁が異なるため表のみ。",
+  );
   return chapterSection(5, c5);
 }
 
@@ -399,6 +500,31 @@ function chapter7(ctx: ChapterContext): string {
       : "TR差を算出できる十分な標本の帯が不足。",
     ["glickoMissing", "smallSample", "cohortBias"],
     "横軸=自分TR−相手TRの帯。2線=実績勝率とGlicko/RD期待勝率。",
+  );
+  const ledger = (s.tr_ledger ?? {}) as Record<string, any>;
+  const ledgerBands = (ledger.bands ?? []) as Array<Record<string, any>>;
+  c7 += "<h3>TR収支の内訳</h3>" + grain("マッチ単位。相手TR差の帯ごとに、勝ち時・負け時のTR増減と1マッチ平均の純収支を見る。");
+  c7 += fig("32_tr_ledger", "TR差帯別のTR収支");
+  if (ledgerBands.length) {
+    c7 += table(
+      ["TR差帯", "n", "勝", "敗", "勝ち時平均", "負け時平均", "1マッチ平均", "純収支"],
+      ledgerBands.map((row) => [
+        htmlEscape(String(row.label)),
+        row.n,
+        row.wins,
+        row.losses,
+        sgn(row.avg_gain, 1),
+        sgn(row.avg_loss, 1),
+        sgn(row.net_per_match, 1),
+        sgn(row.net, 0),
+      ]),
+      { minWidth: 820, showDirection: false, mobileColumns: [0, 1, 6] },
+    );
+  }
+  c7 += block(
+    trLedgerResult(ledger),
+    ["cohortBias", "dqIncluded", "smallSample"],
+    "棒=勝ち時・負け時の平均TR増減、線=1マッチ平均の純収支。0線より上なら収支プラス。",
   );
   return chapterSection(7, c7);
 }

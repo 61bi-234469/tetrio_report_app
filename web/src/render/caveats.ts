@@ -21,7 +21,8 @@ export type CaveatId =
   | "replayNotInspected"
   | "dqIncluded"
   | "matchLevelSource"
-  | "roundDqMixed";
+  | "roundDqMixed"
+  | "placementScope";
 
 interface Caveat {
   short: string;
@@ -96,6 +97,10 @@ export const CAVEATS: Record<CaveatId, Caveat> = {
   roundDqMixed: {
     short: "DQ試合のラウンド",
     full: "タイブレーク・逆転・決着時間などラウンド単位の項目もDQ試合のラウンドを含む。相手の途中切断などで通常と異なるラウンドが混じる場合がある。",
+  },
+  placementScope: {
+    short: "順位の範囲",
+    full: "世界順位はマッチ時点のスナップショット。ランク内順位ではなく全体順位で、ランク総人口は取得できないため上位%には換算しない。自分が勝敗で動かなくても他プレイヤーの変動で順位は動く。",
   },
 };
 

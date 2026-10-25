@@ -121,6 +121,7 @@ export interface Summary {
   styles: Record<string, unknown>;
   styles_recent: Record<string, unknown>;
   tr_gap: Array<Record<string, unknown>>;
+  tr_ledger: Record<string, unknown>;
   drawdown: Record<string, unknown>;
   streaks: Record<string, unknown>;
   streak_states: Array<Record<string, unknown>>;
@@ -136,6 +137,7 @@ export interface Summary {
   pps_bins: Array<Record<string, unknown>>;
   records: Array<Record<string, unknown>>;
   rank_journey: Record<string, unknown>;
+  placement: Record<string, unknown>;
   session_decay: Array<Record<string, unknown>>;
   comeback: Record<string, unknown>;
   style_matchup_plane: Record<string, unknown>;

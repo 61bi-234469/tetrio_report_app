@@ -182,6 +182,7 @@ export function analyzeReport(roundRows: RoundRow[], options: AnalyzeOptions): A
     styles: buildStyleSummary(completed),
     styles_recent: buildStyleSummary(recentMatches),
     tr_gap: trGap,
+    tr_ledger: buildTrLedger(completed),
     drawdown,
     streaks: {
       max_win: Math.max(0, ...overallStreak.wins),
@@ -209,6 +210,7 @@ export function analyzeReport(roundRows: RoundRow[], options: AnalyzeOptions): A
     pps_bins: buildPpsBins(completed),
     records,
     rank_journey: buildRankJourney(completed),
+    placement: buildPlacementJourney(completed),
     session_decay: buildSessionDecay(completed),
     comeback: buildComeback(eligibleRounds, completed),
     style_matchup_plane: buildStyleMatchupPlane(completed),
@@ -688,30 +690,79 @@ function buildScoreStateRounds(rounds: RoundRow[], matches: MatchRow[]): Array<R
   });
 }
 
-function buildTrGap(matches: MatchRow[]): Array<Record<string, unknown>> {
-  const edges = [-Infinity, -2000, -1000, -500, 0, 500, 1000, 2000, Infinity];
-  const labels = ["≤-2000", "-2000~-1000", "-1000~-500", "-500~0", "0~500", "500~1000", "1000~2000", "≥2000"];
-  const rows: Array<Record<string, unknown>> = [];
-  for (let i = 0; i < edges.length - 1; i += 1) {
-    const low = edges[i] ?? -Infinity;
-    const high = edges[i + 1] ?? Infinity;
+// 相手TR差の帯。図12（実績vs期待）と第7章のTR収支で同じ境界・ラベルを共有する。
+const TR_GAP_EDGES = [-Infinity, -2000, -1000, -500, 0, 500, 1000, 2000, Infinity];
+const TR_GAP_LABELS = ["≤-2000", "-2000~-1000", "-1000~-500", "-500~0", "0~500", "500~1000", "1000~2000", "≥2000"];
+
+// tr_diff を帯ごとに分ける。空の帯は落とすため、呼び出し側のラベルは必ず行と対応する。
+function trGapBands(
+  matches: MatchRow[],
+  predicate: (match: MatchRow) => boolean,
+): Array<{ label: string; group: MatchRow[] }> {
+  const bands: Array<{ label: string; group: MatchRow[] }> = [];
+  for (let i = 0; i < TR_GAP_EDGES.length - 1; i += 1) {
+    const low = TR_GAP_EDGES[i] ?? -Infinity;
+    const high = TR_GAP_EDGES[i + 1] ?? Infinity;
     const group = matches.filter((match) => {
       const value = toNumber(match.tr_diff);
-      return value !== null && value >= low && value < high && toNumber(match.expected_win) !== null;
+      return value !== null && value >= low && value < high && predicate(match);
     });
-    if (!group.length) {
-      continue;
+    if (group.length) {
+      bands.push({ label: TR_GAP_LABELS[i] ?? `${low}~${high}`, group });
     }
-    rows.push({
-      label: labels[i] ?? `${low}~${high}`,
-      n: group.length,
-      tr_diff: mean(group.map((match) => match.tr_diff)),
-      actual: groupWinRate(group),
-      expected: mean(group.map((match) => match.expected_win)),
-      excess: expectedExcess(group),
-    });
   }
-  return rows;
+  return bands;
+}
+
+function buildTrGap(matches: MatchRow[]): Array<Record<string, unknown>> {
+  return trGapBands(matches, (match) => toNumber(match.expected_win) !== null).map(({ label, group }) => ({
+    label,
+    n: group.length,
+    tr_diff: mean(group.map((match) => match.tr_diff)),
+    actual: groupWinRate(group),
+    expected: mean(group.map((match) => match.expected_win)),
+    excess: expectedExcess(group),
+  }));
+}
+
+// マッチ単位TR増減。APIの tr_delta を優先し、欠損時のみ tr_after − tr_before で補う。
+function matchTrDelta(match: MatchRow): number | null {
+  const delta = toNumber(match.tr_delta);
+  if (delta !== null) {
+    return delta;
+  }
+  const before = toNumber(match.tr_before);
+  const after = toNumber(match.tr_after);
+  return before !== null && after !== null ? after - before : null;
+}
+
+// 勝ちで得るTRと負けで失うTRを分けた収支。avg_loss は負値のまま持つ。
+function trLedgerTotals(matches: MatchRow[]): Record<string, unknown> {
+  const rows = matches
+    .map((match) => ({ won: Boolean(match.won), delta: matchTrDelta(match) }))
+    .filter((row): row is { won: boolean; delta: number } => row.delta !== null);
+  const gains = rows.filter((row) => row.won).map((row) => row.delta);
+  const losses = rows.filter((row) => !row.won).map((row) => row.delta);
+  return {
+    n: rows.length,
+    wins: gains.length,
+    losses: losses.length,
+    avg_gain: mean(gains),
+    avg_loss: mean(losses),
+    net: rows.length ? rows.reduce((sum, row) => sum + row.delta, 0) : null,
+    net_per_match: mean(rows.map((row) => row.delta)),
+  };
+}
+
+// TR収支。全体と相手TR差の帯別。期待勝率は使わないためGlicko欠損マッチも対象に含む。
+function buildTrLedger(matches: MatchRow[]): Record<string, unknown> {
+  return {
+    ...trLedgerTotals(matches),
+    bands: trGapBands(matches, (match) => matchTrDelta(match) !== null).map(({ label, group }) => ({
+      label,
+      ...trLedgerTotals(group),
+    })),
+  };
 }
 
 function buildDrawdownSeries(matches: MatchRow[]): Array<Record<string, unknown>> {
@@ -1258,6 +1309,9 @@ function buildPpsBins(matches: MatchRow[]): Array<Record<string, unknown>> {
       Area: aggregateMetricMean(group, "Area", derived),
       win_rate: groupWinRate(group),
       expected: mean(group.map((match) => match.expected_win)),
+      // 期待勝率はGlicko/RD欠損マッチを含められない。期待超過は実績も同じ部分集合で取り直す。
+      expected_n: group.filter((match) => toNumber(match.expected_win) !== null).length,
+      excess: expectedExcess(group),
     };
   });
 }
@@ -1282,6 +1336,31 @@ function buildRankJourney(matches: MatchRow[]): Record<string, unknown> {
     previous = current;
   }
   return { transitions, current: previous };
+}
+
+// 世界順位（placement）の推移。順位は小さいほど上位。未ランク行はAPIが0や負値を返すため落とす。
+function buildPlacementJourney(matches: MatchRow[]): Record<string, unknown> {
+  const rows = matches
+    .map((match) => ({ date: match.played_at_jst ?? null, value: toNumber(match.placement_after) }))
+    .filter((row): row is { date: string | null; value: number } => row.value !== null && row.value > 0);
+  if (!rows.length) {
+    return { n: 0, current: null, first: null, best: null, best_date: null, worst: null, worst_date: null, change: null };
+  }
+  const best = rows.reduce((found, row) => (row.value < found.value ? row : found));
+  const worst = rows.reduce((found, row) => (row.value > found.value ? row : found));
+  const first = rows[0]!;
+  const current = rows[rows.length - 1]!;
+  return {
+    n: rows.length,
+    current: current.value,
+    first: first.value,
+    best: best.value,
+    best_date: best.date,
+    worst: worst.value,
+    worst_date: worst.date,
+    // 正なら期間中に順位が上がった（数値が小さくなった）。
+    change: first.value - current.value,
+  };
 }
 
 function buildSessionLengthWinrate(matches: MatchRow[]): Array<Record<string, unknown>> {

@@ -605,7 +605,7 @@ function chapter11(ctx: ChapterContext): string {
   const dbr = (s.duration_by_result ?? {}) as Record<string, any>;
   const winDur = (dbr.win ?? {}) as Record<string, any>;
   const lossDur = (dbr.loss ?? {}) as Record<string, any>;
-  let c11 = chapterHeader(11, "ラウンド展開とマッチ時間", "ラウンドが長短どの帯に入ったとき何が起きたか。決着時間分布・ラウンド時間別勝率・時間帯別の能力差分をいずれもラウンド単位で扱う。");
+  let c11 = chapterHeader(11, "ラウンド展開とマッチ時間", "ラウンドが長短どの帯に入ったとき何が起きたか。決着時間分布と、時間帯別の勝率・能力差分をいずれもラウンド単位で扱う。");
   c11 += "<h3>勝敗別の決着時間分布（ラウンド単位）</h3>" + grain("ラウンド単位。1本ごとの継続時間を、勝ちラウンドと負けラウンドで比べる。");
   if (Object.keys(winDur).length || Object.keys(lossDur).length) {
     c11 += table(
@@ -623,25 +623,20 @@ function chapter11(ctx: ChapterContext): string {
       : "勝敗別の決着時間を集計不可。",
     ["reverseCausation"],
   );
-  c11 += "<h3>ラウンド決着時間別勝率（ラウンド単位）</h3>" + grain("ラウンド単位。30秒幅の決着時間帯ごとにラウンド勝率を見る。") + fig("17_round_duration", "ラウンド決着時間別勝率");
-  c11 += block(
-    worstDuration ? `標本20以上で最も低い帯は${htmlEscape(String(worstDuration.label))}、勝率${pct(worstDuration.win_rate)}（n=${worstDuration.n}）。` : "十分な標本の時間帯なし。",
-    ["reverseCausation", "smallSample"],
-    "30秒幅の決着時間帯ごとのラウンド勝率と標本数。図・表とも標本20以上の帯のみ。",
-  );
   const durationDeltaMetrics = [...ABILITY_METRICS, ...STYLE_ORDER];
-  const deltaRows = durationFiltered.map((d) => [d.label, d.n, ...durationDeltaMetrics.map((m) => metricFmt(m, d[`delta_${m}`], true))]);
-  c11 += "<h3>ラウンド決着時間帯別の能力差分（ラウンド単位）</h3>" + grain("ラウンド単位。各時間帯に入ったラウンドで、自分と相手の指標差を見る。") + fig("19_duration_metric_deltas", "ラウンド決着時間帯別の能力差分");
-  if (deltaRows.length) {
-    // モバイルは図と同じ主要4指標（ΔAPM/ΔPPS/ΔVS/ΔArea）＋時間帯・標本だけ残す。
+  const durationRows = durationFiltered.map((d) => [d.label, d.n, pct(d.win_rate), ...durationDeltaMetrics.map((m) => metricFmt(m, d[`delta_${m}`], true))]);
+  c11 += "<h3>ラウンド決着時間帯別の勝率と能力差分（ラウンド単位）</h3>" + grain("ラウンド単位。30秒幅の決着時間帯ごとに、ラウンド勝率と自分−相手の指標差を見る。");
+  c11 += fig("17_round_duration", "ラウンド決着時間別勝率") + fig("19_duration_metric_deltas", "ラウンド決着時間帯別の能力差分");
+  if (durationRows.length) {
+    // モバイルは時間帯・標本・勝率と、図と同じ主要4指標（ΔAPM/ΔPPS/ΔVS/ΔArea）だけ残す。
     const keepMetrics = new Set(["APM", "PPS", "VS", "Area"]);
-    const durationMobileCols = [0, 1, ...durationDeltaMetrics.flatMap((m, i) => (keepMetrics.has(m) ? [i + 2] : []))];
-    c11 += table(["時間帯", "標本", ...durationDeltaMetrics.map((m) => `Δ${m}`)], deltaRows, { showDirection: false, minWidth: 1900, mobileColumns: durationMobileCols });
+    const durationMobileCols = [0, 1, 2, ...durationDeltaMetrics.flatMap((m, i) => (keepMetrics.has(m) ? [i + 3] : []))];
+    c11 += table(["時間帯", "標本", "ラウンド勝率", ...durationDeltaMetrics.map((m) => `Δ${m}`)], durationRows, { showDirection: false, minWidth: 1900, mobileColumns: durationMobileCols });
   }
   c11 += block(
-    "正の差分はその時間帯で相手より優位、負は劣位。時間帯ごとに優劣がどう変わるかを見る。",
-    ["smallSample", "cohortBias"],
-    "各時間帯の自分−相手の指標・スタイル差の平均。図は主要4指標、表は全指標。",
+    worstDuration ? `標本20以上で最も低い帯は${htmlEscape(String(worstDuration.label))}、勝率${pct(worstDuration.win_rate)}（n=${worstDuration.n}）。` : "十分な標本の時間帯なし。",
+    ["reverseCausation", "smallSample", "cohortBias"],
+    "上図=時間帯ごとのラウンド勝率と標本数。下図=自分−相手の指標差の平均（主要4指標、正は相手より優位）。表は全指標。図・表とも標本20以上の帯のみ。",
   );
   return chapterSection(11, c11);
 }

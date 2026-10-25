@@ -84,7 +84,7 @@ Refresh `samples/sample_web_report.html` with the current web edition output for
    Open `http://127.0.0.1:8790/samples/sample_web_report.html` and confirm:
    - The header shows the anonymized player label (`プレイヤー`).
    - The header shows official match count 300.
-   - The `canvas` count matches `CHART_IDS` in `web/src/charts/configs.ts` (32 as of 2026-10-25).
+   - The `canvas` count matches `CHART_IDS` in `web/src/charts/configs.ts` (31 as of 2026-10-25).
    - Chapter 1 chart `01_tr_history` visibly renders.
    - Browser console has no errors.
 
